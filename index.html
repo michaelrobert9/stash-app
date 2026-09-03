@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Stash — My List</title>
+    <link rel="stylesheet" href="styles.css" />
+    <!-- A little emoji as the browser-tab icon -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>"
+    />
+  </head>
+  <body>
+    <main class="app">
+      <header class="app__header">
+        <h1>📦 Stash</h1>
+        <p class="app__subtitle">Keep track of your stuff.</p>
+      </header>
+
+      <!-- The box for typing a new item.
+           Using a <form> means pressing Enter also adds the item. -->
+      <form id="add-form" class="add-form">
+        <input
+          id="new-item"
+          class="add-form__input"
+          type="text"
+          placeholder="Add something to your stash…"
+          autocomplete="off"
+          required
+        />
+        <button class="add-form__button" type="submit">Add</button>
+      </form>
+
+      <!-- The list of items gets built here by script.js -->
+      <ul id="list" class="list"></ul>
+
+      <!-- Shown only when the list is empty -->
+      <p id="empty-message" class="empty-message">
+        Nothing here yet. Add your first item above! ✨
+      </p>
+
+      <footer class="app__footer">
+        <span id="count" class="count"></span>
+        <button id="clear-done" class="clear-done" type="button">
+          Clear finished
+        </button>
+      </footer>
+    </main>
+
+    <script src="script.js"></script>
+  </body>
+</html>
