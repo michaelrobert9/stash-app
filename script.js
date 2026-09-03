@@ -271,6 +271,11 @@ function loadState() {
         if (saved.taskStates[t.id]) t.state = saved.taskStates[t.id];
       });
     }
+    if (saved.awards) {
+      tasks.forEach((t) => {
+        if (typeof saved.awards[t.id] === "number") t.award = saved.awards[t.id];
+      });
+    }
     if (Array.isArray(saved.rewards)) rewards = saved.rewards;
     if (Array.isArray(saved.redemptions)) redemptions = saved.redemptions;
     if (saved.activeChildId && children.some((c) => c.id === saved.activeChildId)) {
@@ -288,14 +293,17 @@ function loadState() {
 function saveState() {
   try {
     const taskStates = {};
+    const awards = {};
     tasks.forEach((t) => {
       if (t.state !== "todo") taskStates[t.id] = t.state;
+      if (typeof t.award === "number") awards[t.id] = t.award;
     });
     localStorage.setItem(
       STATE_KEY,
       JSON.stringify({
         children: children.map((c) => ({ id: c.id, color: c.color })),
         taskStates,
+        awards,
         rewards,
         redemptions,
         activeChildId,
@@ -322,11 +330,18 @@ function tasksFor(childId) {
   return tasks.filter((t) => t.childId === childId);
 }
 
+// How many points a verified task actually awarded. The parent
+// chooses this when they verify (a badly-done chore can earn less),
+// defaulting to the chore's full value.
+function awardedPoints(task) {
+  return typeof task.award === "number" ? task.award : task.points;
+}
+
 // Points earned (verified) by a child, minus what they've spent.
 function childPoints(childId) {
   const earned = tasksFor(childId)
     .filter((t) => t.state === "verified")
-    .reduce((sum, t) => sum + t.points, 0);
+    .reduce((sum, t) => sum + awardedPoints(t), 0);
   const spent = redemptions
     .filter((r) => r.childId === childId)
     .reduce((sum, r) => sum + r.cost, 0);
@@ -539,15 +554,7 @@ function renderParentChores() {
 
   const waiting = tasks.filter((t) => t.state === "pending");
   queueListEl.innerHTML = "";
-  waiting.forEach((task) => {
-    const actions = [
-      iconButton("✓", "pbtn pbtn--verify", "Verify task", () => verifyTask(task.id)),
-      iconButton("↩", "pbtn pbtn--decline", "Send back", () =>
-        setState(task.id, "declined")
-      ),
-    ];
-    queueListEl.append(taskRow(task, actions, { showChild: true }));
-  });
+  waiting.forEach((task) => queueListEl.append(verifyRow(task)));
   queueEmptyEl.hidden = waiting.length > 0;
 
   // Badge in the drawer + a dot on the hamburger so a parent knows
@@ -555,6 +562,55 @@ function renderParentChores() {
   drawerParentBadge.textContent = waiting.length;
   drawerParentBadge.hidden = waiting.length === 0;
   menuDot.hidden = waiting.length === 0;
+}
+
+// One row in the verification queue: the chore, whose it is, and a
+// set of point choices so the parent picks how many points to award
+// (a badly-done chore can earn fewer than its full value).
+function verifyRow(task) {
+  const child = getChild(task.childId);
+  const li = document.createElement("li");
+  li.className = "task queue-row";
+  if (child) li.style.setProperty("--accent", child.color);
+
+  const main = document.createElement("div");
+  main.className = "task__main";
+  const name = document.createElement("p");
+  name.className = "task__name";
+  name.textContent = task.name;
+  const meta = document.createElement("div");
+  meta.className = "task__meta";
+  if (child) {
+    const chip = document.createElement("span");
+    chip.className = "child-chip";
+    chip.style.background = child.color;
+    chip.textContent = child.name;
+    meta.append(chip);
+  }
+  main.append(name, meta);
+
+  const controls = document.createElement("div");
+  controls.className = "verify-controls";
+  const label = document.createElement("span");
+  label.className = "verify-controls__label";
+  label.textContent = task.points > 1 ? "Award points" : "Award";
+  controls.append(label);
+
+  // One chip per possible award, 1..full value. Full is highlighted.
+  for (let n = 1; n <= task.points; n++) {
+    const chip = button(String(n), "award-chip", () => verifyTask(task.id, n));
+    if (n === task.points) chip.classList.add("is-full");
+    chip.setAttribute("aria-label", `Award ${n} ${n === 1 ? "point" : "points"}`);
+    controls.append(chip);
+  }
+  controls.append(
+    iconButton("↩", "pbtn pbtn--decline", "Send back", () =>
+      setState(task.id, "declined")
+    )
+  );
+
+  li.append(main, controls);
+  return li;
 }
 
 /* ---------- Child · Shop (the kiosk) --------------------- */
@@ -1513,17 +1569,22 @@ function setState(id, state) {
   const task = tasks.find((t) => t.id === id);
   if (!task) return;
   task.state = state;
+  if (state !== "verified") delete task.award; // reset any chosen award
   saveState();
   update();
 }
 
-function verifyTask(id) {
+// The parent verifies a chore and chooses how many points to award
+// (up to the chore's value) — a badly-done chore can earn less.
+function verifyTask(id, points) {
   const task = tasks.find((t) => t.id === id);
   if (!task) return;
+  const award = typeof points === "number" ? points : task.points;
+  task.award = award;
   task.state = "verified";
   saveState();
   update();
-  showToast(`+${task.points} ${task.points === 1 ? "point" : "points"}`);
+  showToast(`+${award} ${award === 1 ? "point" : "points"}`);
 }
 
 function setActiveChild(id) {
@@ -1620,13 +1681,9 @@ function showToast(message) {
 let currentPage = "child"; // child | parent
 let currentSection = "chores"; // chores | shop
 
-function setPage(page) {
+// Each menu leaf is a full destination: a person + a view.
+function navigate(page, section) {
   currentPage = page;
-  saveState();
-  showView();
-}
-
-function setSection(section) {
   currentSection = section;
   saveState();
   showView();
@@ -1655,9 +1712,8 @@ function showView() {
 
   drawerItems.forEach((item) => {
     const active =
-      (item.dataset.page && item.dataset.page === currentPage) ||
-      (item.dataset.section && item.dataset.section === currentSection);
-    item.classList.toggle("is-active", !!active);
+      item.dataset.page === currentPage && item.dataset.section === currentSection;
+    item.classList.toggle("is-active", active);
   });
 
   updateFooterNote();
@@ -1674,7 +1730,7 @@ function updateFooterNote() {
     note =
       currentPage === "child"
         ? "Tap <strong>Do</strong> to learn a chore and do it. A parent verifies it afterwards."
-        : "Tap <strong>✓</strong> to verify a finished chore (points are added then), or <strong>↩</strong> to send it back.";
+        : "Choose how many <strong>points to award</strong> a finished chore, or <strong>↩</strong> to send it back.";
   }
   footerNote.innerHTML = note;
 }
@@ -1729,8 +1785,7 @@ menuClose.addEventListener("click", closeMenu);
 drawerBackdrop.addEventListener("click", closeMenu);
 drawerItems.forEach((item) => {
   item.addEventListener("click", () => {
-    if (item.dataset.page) setPage(item.dataset.page);
-    else if (item.dataset.section) setSection(item.dataset.section);
+    navigate(item.dataset.page, item.dataset.section);
     closeMenu(); // close cleanly after choosing
   });
 });

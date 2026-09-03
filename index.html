@@ -65,22 +65,30 @@
             </button>
           </div>
 
-          <p class="drawer__label">Who</p>
-          <button class="drawer__item" type="button" data-page="child">
-            <span class="drawer__emoji" aria-hidden="true">🧒</span>Children
-          </button>
-          <button class="drawer__item" type="button" data-page="parent">
-            <span class="drawer__emoji" aria-hidden="true">🧑</span>Parents
-            <span id="drawer-parent-badge" class="tab__badge" hidden>0</span>
-          </button>
+          <div class="drawer__group">
+            <p class="drawer__group-name">
+              <span class="drawer__emoji" aria-hidden="true">🧒</span>Children
+            </p>
+            <button class="drawer__item drawer__item--sub" type="button" data-page="child" data-section="chores">
+              Chores
+            </button>
+            <button class="drawer__item drawer__item--sub" type="button" data-page="child" data-section="shop">
+              Shop
+            </button>
+          </div>
 
-          <p class="drawer__label">View</p>
-          <button class="drawer__item" type="button" data-section="chores">
-            <span class="drawer__emoji" aria-hidden="true">✅</span>Chores
-          </button>
-          <button class="drawer__item" type="button" data-section="shop">
-            <span class="drawer__emoji" aria-hidden="true">🛍️</span>Shop
-          </button>
+          <div class="drawer__group">
+            <p class="drawer__group-name">
+              <span class="drawer__emoji" aria-hidden="true">🧑</span>Parents
+              <span id="drawer-parent-badge" class="tab__badge" hidden>0</span>
+            </p>
+            <button class="drawer__item drawer__item--sub" type="button" data-page="parent" data-section="chores">
+              Chores
+            </button>
+            <button class="drawer__item drawer__item--sub" type="button" data-page="parent" data-section="shop">
+              Shop
+            </button>
+          </div>
         </nav>
       </div>
 

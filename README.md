@@ -17,9 +17,9 @@ Open `index.html` in a web browser (double-click it, or drag it into a
 browser window). No installation required.
 
 All navigation lives in one **hamburger menu** (top-left). It slides in over
-a dimmed backdrop and closes cleanly when you pick something or tap away. It
-holds both **who** is using the app (Children / Parents) and **which view**
-(Chores / Shop).
+a dimmed backdrop and closes cleanly when you pick something or tap away. It's
+grouped by person — **Children** (Chores / Shop) and **Parents** (Chores /
+Shop) — so each menu item is a complete destination.
 
 - **Child** — the child's points, the tally, today's chores, and the shop to
   spend points in.
@@ -53,9 +53,10 @@ In the demo, the loop runs across both pages:
 2. Once you've played the game, a gentle **timer** starts and you go and do
    the real chore. Tap **I've done it** when you're finished — the task
    becomes _waiting on a parent_.
-3. Switch to the **Parent** page (the menu bar shows a badge when chores are
-   waiting). Tap **✓** to verify — the points are added and the tally counter
-   draws the new strokes — or **↩** to send the task back.
+3. On the **Parent** page (the menu shows a badge when chores are waiting),
+   verify a finished chore by **choosing how many points to award** — up to
+   the chore's value, so a chore done badly can earn fewer. The tally counter
+   draws the new strokes. Or tap **↩** to send the task back.
 
 The timer counts down from a suggested time but never fails you or takes
 points — when it reaches zero it just says "finish up and tap Done".
