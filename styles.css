@@ -1,21 +1,67 @@
 /* ============================================================
    Stash — styles
-   Colours and sizes are grouped here at the top as "variables"
-   so they're easy to change in one place.
+   Built from the Stash design guidelines (v1.0).
+   All the colours, sizes and spacing come straight from the
+   brand's "design tokens", set up here as CSS variables so you
+   only ever change a value in one place.
    ============================================================ */
+
+/* ---------- Design tokens: light mode ---------- */
 :root {
-  --bg: #f4f6fb;
-  --card: #ffffff;
-  --text: #1f2430;
-  --muted: #7a8194;
-  --accent: #5b6cff;
-  --accent-dark: #4453e0;
-  --done: #b6bccb;
-  --danger: #ff5b6c;
-  --radius: 14px;
-  --shadow: 0 10px 30px rgba(31, 36, 48, 0.08);
+  /* Colour */
+  --ink: #16151a; /* primary text, tally uprights */
+  --slate: #6b6a75; /* secondary / helper text */
+  --mist: #e8e6e1; /* dividers, borders, disabled */
+  --paper: #fbf9f4; /* app background */
+  --surface: #ffffff; /* cards */
+  --strike: #6a4df4; /* the strike, points, primary action */
+  --strike-deep: #4a32c4; /* pressed / active */
+  --strike-tint: #ede9fe; /* point badges, selected rows */
+
+  /* Status (task state only — never brand surfaces) */
+  --verified: #17a673;
+  --pending: #f0a02a;
+  --declined: #e0523c;
+
+  /* Radius */
+  --r-sm: 8px;
+  --r-md: 14px;
+  --r-lg: 22px;
+  --r-pill: 999px;
+
+  /* One shadow, used only on cards */
+  --shadow: 0 2px 12px rgba(22, 21, 26, 0.07);
+
+  --screen-gutter: 20px;
 }
 
+/* ---------- Design tokens: dark mode ----------
+   Violet lifts so it holds contrast on a dark surface.
+   Status colours stay the same. We honour both the system
+   setting and the manual toggle (data-theme). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ink: #fbf9f4;
+    --paper: #111015;
+    --surface: #1c1b22;
+    --mist: #2e2c36;
+    --slate: #9a98a6;
+    --strike: #8a72ff;
+    --shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  --ink: #fbf9f4;
+  --paper: #111015;
+  --surface: #1c1b22;
+  --mist: #2e2c36;
+  --slate: #9a98a6;
+  --strike: #8a72ff;
+  --shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- Base ---------- */
 * {
   box-sizing: border-box;
 }
@@ -23,162 +69,442 @@
 body {
   margin: 0;
   min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Poppins", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px; /* never below 15 — half the users are children */
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The app is phone-shaped; centre it on wider screens. */
+.screen {
+  max-width: 460px;
+  margin: 0 auto;
+  min-height: 100vh;
+  padding: 12px var(--screen-gutter) 32px;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  background: var(--bg);
-  color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  padding: 24px 16px 48px;
+  flex-direction: column;
 }
 
-/* The white card that holds everything */
-.app {
-  width: 100%;
-  max-width: 520px;
-  background: var(--card);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 28px 24px;
-  margin-top: 24px;
-}
-
-.app__header {
-  text-align: center;
-  margin-bottom: 24px;
-}
-
-.app__header h1 {
-  margin: 0;
-  font-size: 2rem;
-}
-
-.app__subtitle {
-  margin: 6px 0 0;
-  color: var(--muted);
-}
-
-/* ---- Add-item box ---- */
-.add-form {
+/* ---------- Top bar ---------- */
+.topbar {
   display: flex;
-  gap: 8px;
-  margin-bottom: 20px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0 4px;
 }
 
-.add-form__input {
-  flex: 1;
-  padding: 12px 14px;
-  font-size: 1rem;
-  border: 2px solid #e6e9f2;
-  border-radius: 10px;
-  outline: none;
+.topbar__logo {
+  height: 28px;
+  width: auto;
+}
+
+/* Show the right logo for the current theme */
+.topbar__logo--dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .topbar__logo--light {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .topbar__logo--dark {
+    display: block;
+  }
+}
+:root[data-theme="dark"] .topbar__logo--light {
+  display: none;
+}
+:root[data-theme="dark"] .topbar__logo--dark {
+  display: block;
+}
+
+.icon-button {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--mist);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
   transition: border-color 0.15s ease;
 }
-
-.add-form__input:focus {
-  border-color: var(--accent);
+.icon-button:hover {
+  border-color: var(--slate);
 }
 
-.add-form__button {
-  padding: 0 20px;
-  font-size: 1rem;
-  font-weight: 600;
-  color: #fff;
-  background: var(--accent);
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  transition: background 0.15s ease;
+/* Sun / moon drawn from a CSS circle */
+.theme-toggle__icon {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: inset -5px -5px 0 0 var(--surface);
+}
+:root[data-theme="dark"] .theme-toggle__icon,
+:root:not([data-theme="light"]) .theme-toggle__icon {
+  /* handled below in dark media too */
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle__icon {
+    box-shadow: none;
+    background: var(--ink);
+  }
+}
+:root[data-theme="dark"] .theme-toggle__icon {
+  box-shadow: none;
+}
+:root[data-theme="light"] .theme-toggle__icon {
+  box-shadow: inset -5px -5px 0 0 var(--surface);
 }
 
-.add-form__button:hover {
-  background: var(--accent-dark);
+/* ---------- Hero ---------- */
+.hero {
+  text-align: center;
+  padding: 28px 0 24px;
 }
 
-/* ---- The list ---- */
-.list {
+.hero__label {
+  margin: 0;
+  color: var(--slate);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.hero__balance {
+  margin: 2px 0 0;
+  font-size: 56px; /* Display, exaggerated — the number that matters */
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.5px;
+}
+
+.hero__unit {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--slate);
+  margin-left: 6px;
+}
+
+.hero__hint {
+  margin: 8px 0 0;
+  color: var(--slate);
+  font-size: 12px;
+  min-height: 1.4em;
+}
+
+/* ---------- Tally counter ---------- */
+.tally {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+  margin-top: 18px;
+}
+
+.tally__bundle {
+  height: 52px;
+  width: auto;
+  overflow: visible;
+}
+
+/* The strokes. Uprights use ink (which flips to paper in dark
+   mode automatically), the strike is always violet. */
+.tally-upright {
+  fill: var(--ink);
+}
+.tally-strike {
+  stroke: var(--strike);
+}
+
+/* The faint "next stroke" that hints a pending task */
+.tally-upright--ghost {
+  opacity: 0.2;
+}
+
+.tally__numeral {
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+/* Draw-on animations (only when strokes are newly earned) */
+.tally-upright.is-drawing {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: draw-up 180ms ease-out both;
+}
+.tally-strike.is-drawing {
+  stroke-dasharray: 80;
+  animation: draw-strike 260ms ease-out both;
+}
+.tally__bundle.is-complete {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: bundle-pulse 320ms ease-out;
+}
+
+@keyframes draw-up {
+  from {
+    opacity: 0;
+    transform: scaleY(0.15);
+  }
+  to {
+    opacity: 1;
+    transform: scaleY(1);
+  }
+}
+@keyframes draw-strike {
+  from {
+    stroke-dashoffset: 80;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes bundle-pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Respect people who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  .tally-upright.is-drawing,
+  .tally-strike.is-drawing,
+  .tally__bundle.is-complete {
+    animation: none;
+  }
+}
+
+/* ---------- Section heading ---------- */
+.section-heading {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 8px 0 12px;
+}
+
+/* ---------- Task list ---------- */
+.task-list {
   list-style: none;
   margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
 }
 
-.list__item {
+.task {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 14px;
-  background: #fafbff;
-  border: 1px solid #eceffa;
-  border-radius: 10px;
+  min-height: 64px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
 }
 
-.list__checkbox {
-  width: 20px;
-  height: 20px;
-  cursor: pointer;
-  flex-shrink: 0;
-  accent-color: var(--accent);
+.task--verified {
+  opacity: 0.6;
 }
 
-.list__text {
+.task__main {
   flex: 1;
+  min-width: 0;
+}
+
+.task__name {
+  font-size: 15px;
+  margin: 0 0 4px;
   word-break: break-word;
 }
 
-/* A finished (ticked) item gets crossed out and greyed */
-.list__item--done .list__text {
+.task--verified .task__name {
   text-decoration: line-through;
-  color: var(--done);
 }
 
-.list__delete {
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-size: 1.2rem;
-  line-height: 1;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 8px;
-  transition: color 0.15s ease, background 0.15s ease;
+/* Point badge: strike-tint pill with strike-coloured text */
+.badge {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  background: var(--strike-tint);
+  color: var(--strike);
+  font-weight: 500;
+  border-radius: var(--r-pill);
+  padding: 3px 10px;
+  font-size: 13px;
+}
+.badge__unit {
+  font-size: 11px;
+}
+/* Keep the tint readable in dark mode */
+:root[data-theme="dark"] .badge,
+:root:not([data-theme="light"]) .badge {
+  background: rgba(138, 114, 255, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .badge {
+    background: rgba(138, 114, 255, 0.18);
+  }
 }
 
-.list__delete:hover {
-  color: var(--danger);
-  background: #ffe9ec;
-}
-
-/* ---- Empty state ---- */
-.empty-message {
-  text-align: center;
-  color: var(--muted);
-  padding: 24px 0;
-}
-
-/* ---- Footer ---- */
-.app__footer {
+/* ---------- Task actions ---------- */
+.task__actions {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  margin-top: 22px;
-  padding-top: 16px;
-  border-top: 1px solid #eceffa;
-  color: var(--muted);
-  font-size: 0.9rem;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.clear-done {
-  border: none;
-  background: transparent;
-  color: var(--accent);
-  font-weight: 600;
+/* Primary pill button (child's "Done") */
+.btn {
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--r-pill);
   cursor: pointer;
-  font-size: 0.9rem;
+  min-height: 44px; /* tap target never below 44 */
+  padding: 0 18px;
+  border: 1.5px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.btn--primary {
+  background: var(--strike);
+  color: var(--paper);
+  border-color: var(--strike);
+}
+.btn--primary:hover {
+  background: var(--strike-deep);
+  border-color: var(--strike-deep);
+}
+.btn--secondary {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--ink);
 }
 
-.clear-done:hover {
+/* Parent verify / decline — small round controls */
+.pbtn {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-pill);
+  border: 1.5px solid var(--mist);
+  background: transparent;
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.pbtn--verify {
+  color: var(--verified);
+}
+.pbtn--verify:hover {
+  background: rgba(23, 166, 115, 0.12);
+  border-color: var(--verified);
+}
+.pbtn--decline {
+  color: var(--declined);
+}
+.pbtn--decline:hover {
+  background: rgba(224, 82, 60, 0.12);
+  border-color: var(--declined);
+}
+
+/* ---------- Status pill ---------- */
+.status {
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--r-pill);
+  padding: 5px 11px;
+  white-space: nowrap;
+}
+.status--pending {
+  color: var(--pending);
+  background: rgba(240, 160, 42, 0.12);
+}
+.status--verified {
+  color: var(--verified);
+  background: rgba(23, 166, 115, 0.12);
+}
+.status--declined {
+  color: var(--declined);
+  background: rgba(224, 82, 60, 0.12);
+}
+
+/* ---------- Empty state ---------- */
+.empty-state {
+  color: var(--slate);
+  font-size: 15px;
+  padding: 8px 0;
+}
+
+/* ---------- Footer ---------- */
+.footer {
+  margin-top: auto;
+  padding-top: 24px;
+  text-align: center;
+}
+.footer__note {
+  color: var(--slate);
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0 0 10px;
+}
+.footer__note strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.text-button {
+  background: none;
+  border: none;
+  color: var(--strike);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 8px;
+}
+.text-button:hover {
   text-decoration: underline;
+}
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%) translateY(8px);
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 12px 20px;
+  border-radius: var(--r-pill);
+  box-shadow: var(--shadow);
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  pointer-events: none;
+}
+.toast.is-visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    transition: opacity 0.2s ease;
+  }
 }

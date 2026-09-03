@@ -3,50 +3,85 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Stash — My List</title>
-    <link rel="stylesheet" href="styles.css" />
-    <!-- A little emoji as the browser-tab icon -->
+    <meta name="theme-color" content="#FBF9F4" />
+    <title>Stash</title>
+
+    <!-- Brand favicon + app icons (from the logo kit) -->
+    <link rel="icon" type="image/svg+xml" href="logo/app-icon/stash-favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="logo/png/stash-favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="logo/png/stash-favicon-16.png" />
+    <link rel="apple-touch-icon" href="logo/png/stash-icon-ink-180.png" />
+
+    <!-- Poppins — the brand typeface, weights 300/400/500/700 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      rel="icon"
-      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📦</text></svg>"
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;700&display=swap"
+      rel="stylesheet"
     />
+
+    <link rel="stylesheet" href="styles.css" />
   </head>
+
   <body>
-    <main class="app">
-      <header class="app__header">
-        <h1>📦 Stash</h1>
-        <p class="app__subtitle">Keep track of your stuff.</p>
+    <div class="screen">
+      <!-- ---------- Top bar: logo + theme toggle ---------- -->
+      <header class="topbar">
+        <!-- The horizontal lockup is the default logo. We show the
+             reversed (light) version in dark mode via CSS. -->
+        <img
+          class="topbar__logo topbar__logo--light"
+          src="logo/svg/stash-lockup-horizontal.svg"
+          alt="Stash"
+          height="28"
+        />
+        <img
+          class="topbar__logo topbar__logo--dark"
+          src="logo/svg/stash-lockup-horizontal-reversed.svg"
+          alt="Stash"
+          height="28"
+        />
+
+        <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme">
+          <span class="theme-toggle__icon" aria-hidden="true"></span>
+        </button>
       </header>
 
-      <!-- The box for typing a new item.
-           Using a <form> means pressing Enter also adds the item. -->
-      <form id="add-form" class="add-form">
-        <input
-          id="new-item"
-          class="add-form__input"
-          type="text"
-          placeholder="Add something to your stash…"
-          autocomplete="off"
-          required
-        />
-        <button class="add-form__button" type="submit">Add</button>
-      </form>
+      <!-- ---------- Hero: the balance is the loudest thing ---------- -->
+      <section class="hero" aria-labelledby="balance-label">
+        <p id="balance-label" class="hero__label">Your stash</p>
+        <p class="hero__balance">
+          <span id="balance">0</span>
+          <span class="hero__unit">points</span>
+        </p>
 
-      <!-- The list of items gets built here by script.js -->
-      <ul id="list" class="list"></ul>
+        <!-- The tally counter. JavaScript fills this with bundles of five. -->
+        <div id="tally" class="tally" role="img" aria-label="0 points"></div>
 
-      <!-- Shown only when the list is empty -->
-      <p id="empty-message" class="empty-message">
-        Nothing here yet. Add your first item above! ✨
-      </p>
+        <p id="hero-hint" class="hero__hint"></p>
+      </section>
 
-      <footer class="app__footer">
-        <span id="count" class="count"></span>
-        <button id="clear-done" class="clear-done" type="button">
-          Clear finished
-        </button>
+      <!-- ---------- Today's tasks ---------- -->
+      <section class="tasks" aria-labelledby="tasks-heading">
+        <h2 id="tasks-heading" class="section-heading">Today</h2>
+        <ul id="task-list" class="task-list"></ul>
+        <p id="tasks-empty" class="empty-state" hidden>
+          Nothing left for today. Nice work.
+        </p>
+      </section>
+
+      <!-- ---------- Footer: demo helper ---------- -->
+      <footer class="footer">
+        <p class="footer__note">
+          Tap <strong>Done</strong> as the child, then <strong>✓</strong> to verify as
+          the parent. Points are only added once a parent verifies.
+        </p>
+        <button id="reset" class="text-button" type="button">Reset demo</button>
       </footer>
-    </main>
+    </div>
+
+    <!-- Small message that appears when points are earned -->
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
     <script src="script.js"></script>
   </body>
