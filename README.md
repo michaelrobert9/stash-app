@@ -18,9 +18,16 @@ browser window). No installation required.
 
 In the demo, the whole loop happens on one screen:
 
-1. Tap **Done** on a task — as the child. It becomes _waiting on a parent_.
-2. Tap **✓** to verify — as the parent. The points are added and the tally
+1. Tap **Do** on a task — as the child. A short **step-by-step guide** shows
+   how to do the chore.
+2. When you've read the steps, a gentle **timer** starts and you go and do
+   the real chore. Tap **I've done it** when you're finished — the task
+   becomes _waiting on a parent_.
+3. Tap **✓** to verify — as the parent. The points are added and the tally
    counter draws the new strokes. (Or tap **↩** to send the task back.)
+
+The timer counts down from a suggested time but never fails you or takes
+points — when it reaches zero it just says "finish up and tap Done".
 
 Your progress is saved in the browser, and there's a **Reset demo** button at
 the bottom. There's also a light/dark theme toggle in the top corner.

@@ -5,12 +5,14 @@
    doing tasks, a parent verifies the work, and only then are
    the points added to the child's stash.
 
-   This is a single-screen demo that shows the whole loop on
-   one device:
-     • The child taps "Done" on a task  →  it becomes "pending".
-     • The parent taps ✓ to verify      →  points are awarded
-       and the tally counter draws the new strokes.
-     • The parent can instead tap ↩ to send the task back.
+   The flow for one task:
+     1. Child taps "Do".
+     2. A short step-by-step guide shows how to do the chore.
+     3. When they've read the steps, a gentle timer starts and
+        they go and do the real chore.
+     4. They tap "I've done it"  →  the task is "pending".
+     5. The parent taps ✓ to verify (points awarded, the tally
+        counter draws the new strokes) or ↩ to send it back.
 
    The tally counter is the heart of the brand: points are
    shown as bundles of five — four uprights and a strike —
@@ -20,20 +22,85 @@
    come back.
    ============================================================ */
 
-const STORAGE_KEY = "stash-tasks-v1";
+const STORAGE_KEY = "stash-tasks-v2";
 const THEME_KEY = "stash-theme";
 
-/* The tasks we start with. In a real app these would come from
-   what the parent has set up, filtered to the child's age. */
+/* The tasks we start with. Each one carries:
+     points   — how many points it's worth
+     minutes  — a suggested time, used for the countdown timer
+     steps    — how to do the chore, shown one at a time         */
 const DEFAULT_TASKS = [
-  { id: 1, name: "Wash the dishes", points: 3, state: "todo" },
-  { id: 2, name: "Make your bed", points: 1, state: "todo" },
-  { id: 3, name: "Feed the dog", points: 2, state: "todo" },
-  { id: 4, name: "Take out the recycling", points: 2, state: "todo" },
-  { id: 5, name: "Tidy your room", points: 4, state: "todo" },
+  {
+    id: 1,
+    name: "Wash the dishes",
+    points: 3,
+    minutes: 5,
+    state: "todo",
+    steps: [
+      "Scrape any leftover food into the bin.",
+      "Rinse each plate under warm water.",
+      "Put a drop of dishwashing liquid on the sponge.",
+      "Scrub both sides until they're clean.",
+      "Rinse the soap off.",
+      "Stack everything on the rack to dry.",
+    ],
+  },
+  {
+    id: 2,
+    name: "Make your bed",
+    points: 1,
+    minutes: 2,
+    state: "todo",
+    steps: [
+      "Pull the bottom sheet flat and tuck in the sides.",
+      "Straighten the duvet up to the top.",
+      "Fluff the pillows and put them back.",
+      "Smooth out any last wrinkles.",
+    ],
+  },
+  {
+    id: 3,
+    name: "Feed the dog",
+    points: 2,
+    minutes: 2,
+    state: "todo",
+    steps: [
+      "Fetch the dog's food bowl.",
+      "Scoop in one cup of food.",
+      "Empty and refill the water bowl.",
+      "Put both bowls down and let the dog eat.",
+    ],
+  },
+  {
+    id: 4,
+    name: "Take out the recycling",
+    points: 2,
+    minutes: 3,
+    state: "todo",
+    steps: [
+      "Check it's the recycling bin, not the rubbish.",
+      "Tie the bag closed.",
+      "Carry it out to the outside bin.",
+      "Put a fresh bag in the empty bin.",
+    ],
+  },
+  {
+    id: 5,
+    name: "Tidy your room",
+    points: 4,
+    minutes: 6,
+    state: "todo",
+    steps: [
+      "Put dirty clothes in the wash basket.",
+      "Pack your toys and books away.",
+      "Clear everything off the floor.",
+      "Straighten your desk.",
+      "Open the curtains.",
+    ],
+  },
 ];
 
-/* Grab the parts of the page we talk to. */
+/* Page elements */
 const balanceEl = document.getElementById("balance");
 const tallyEl = document.getElementById("tally");
 const heroHintEl = document.getElementById("hero-hint");
@@ -43,6 +110,23 @@ const toastEl = document.getElementById("toast");
 const resetBtn = document.getElementById("reset");
 const themeToggle = document.getElementById("theme-toggle");
 
+/* Overlay elements */
+const overlayEl = document.getElementById("overlay");
+const sheetCloseBtn = document.getElementById("sheet-close");
+const phaseLearn = document.getElementById("phase-learn");
+const phaseDo = document.getElementById("phase-do");
+const sheetTitle = document.getElementById("sheet-title");
+const stepCounter = document.getElementById("step-counter");
+const stepText = document.getElementById("step-text");
+const stepDots = document.getElementById("step-dots");
+const stepNextBtn = document.getElementById("step-next");
+const stepBackBtn = document.getElementById("step-back");
+const doTitle = document.getElementById("do-title");
+const timerEl = document.getElementById("timer");
+const timerFill = document.getElementById("timer-fill");
+const timerHint = document.getElementById("timer-hint");
+const doDoneBtn = document.getElementById("do-done");
+
 const SVG_NS = "http://www.w3.org/2000/svg";
 const prefersReducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)"
@@ -51,22 +135,36 @@ const prefersReducedMotion = window.matchMedia(
 let tasks = loadTasks();
 let shownPoints = 0; // how many points the tally is currently showing
 
+/* Overlay working state */
+let activeTaskId = null;
+let stepIndex = 0;
+let timerId = null;
+
 /* ---------- Saving & loading ------------------------------ */
 
 function loadTasks() {
   try {
     const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      // Merge saved states onto the current task definitions, so
+      // steps/points always come from the code, not old storage.
+      const savedStates = JSON.parse(saved);
+      return DEFAULT_TASKS.map((t) => {
+        const match = savedStates.find((s) => s.id === t.id);
+        return { ...t, state: match ? match.state : "todo" };
+      });
+    }
   } catch (e) {
     /* fall through to defaults */
   }
-  // Return a fresh copy so we never mutate DEFAULT_TASKS.
   return DEFAULT_TASKS.map((t) => ({ ...t }));
 }
 
 function saveTasks() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    // We only need to remember each task's state.
+    const states = tasks.map((t) => ({ id: t.id, state: t.state }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
   } catch (e) {
     /* storage might be unavailable — the demo still works */
   }
@@ -74,14 +172,12 @@ function saveTasks() {
 
 /* ---------- Points --------------------------------------- */
 
-// Verified points are the ones actually in the stash.
 function verifiedPoints() {
   return tasks
     .filter((t) => t.state === "verified")
     .reduce((sum, t) => sum + t.points, 0);
 }
 
-// Pending points are earned but not yet verified (the "ghost" hint).
 function pendingPoints() {
   return tasks
     .filter((t) => t.state === "pending")
@@ -92,7 +188,7 @@ function pendingPoints() {
    Renders `points` as bundles of five. A full bundle is four
    uprights plus a strike; a partial bundle shows only its
    completed uprights. Above 25 points we collapse to a numeral
-   beside a single bundle, or the row overflows.
+   beside a single bundle.
 
    `fromPoints` is what the tally showed before, so we can
    animate only the strokes that are newly earned.            */
@@ -111,28 +207,22 @@ function renderTally(points, fromPoints, pending) {
   const bundles = Math.ceil(points / 5);
   for (let b = 0; b < bundles; b++) {
     const strokesInBundle = Math.min(5, points - b * 5);
-    // A bundle "just completed" if it filled its 5th stroke this time.
-    const justCompleted =
-      strokesInBundle === 5 && b * 5 + 5 > fromPoints;
+    const justCompleted = strokesInBundle === 5 && b * 5 + 5 > fromPoints;
     tallyEl.append(makeBundle(strokesInBundle, b * 5, fromPoints, justCompleted));
   }
 
   // Show the next upright faintly when a task is waiting on a parent.
   if (pending > 0 && points <= 25) {
-    const nextInBundle = points % 5; // 0..4 uprights already in the open bundle
+    const nextInBundle = points % 5;
     if (nextInBundle === 0) {
-      // Start of a new bundle — add a fresh bundle holding one ghost.
       tallyEl.append(makeGhostBundle(0));
     } else if (nextInBundle < 4) {
-      // Add the ghost to the last (open) bundle we just drew.
       const last = tallyEl.querySelector(".tally__bundle:last-of-type");
       if (last) last.append(makeUpright(nextInBundle, true));
     }
   }
 }
 
-// Build one bundle SVG. `base` is how many points came before it,
-// so we can compare each stroke against `fromPoints` for animation.
 function makeBundle(strokes, base, fromPoints, justCompleted) {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("viewBox", "0 0 80 56");
@@ -144,8 +234,7 @@ function makeBundle(strokes, base, fromPoints, justCompleted) {
     svg.append(makeUpright(i, false, isNew));
   }
   if (strokes === 5) {
-    const isNew = base + 5 > fromPoints;
-    svg.append(makeStrike(isNew));
+    svg.append(makeStrike(base + 5 > fromPoints));
   }
   return svg;
 }
@@ -158,8 +247,6 @@ function makeGhostBundle(index) {
   return svg;
 }
 
-// One upright stroke at position `i` (0..3). Coordinates match
-// the supplied logo files: x = 12, 28, 44, 60.
 function makeUpright(i, ghost, isNew) {
   const rect = document.createElementNS(SVG_NS, "rect");
   rect.setAttribute("x", 12 + i * 16);
@@ -174,7 +261,6 @@ function makeUpright(i, ghost, isNew) {
   return rect;
 }
 
-// The diagonal strike that closes a bundle of five.
 function makeStrike(isNew) {
   const line = document.createElementNS(SVG_NS, "line");
   line.setAttribute("x1", 11);
@@ -199,7 +285,6 @@ function renderTasks() {
     const li = document.createElement("li");
     li.className = "task" + (task.state === "verified" ? " task--verified" : "");
 
-    // Left side: name + point badge
     const main = document.createElement("div");
     main.className = "task__main";
 
@@ -213,7 +298,6 @@ function renderTasks() {
 
     main.append(name, badge);
 
-    // Right side: the action(s) for this task's state
     const actions = document.createElement("div");
     actions.className = "task__actions";
     actions.append(...actionsFor(task));
@@ -222,7 +306,6 @@ function renderTasks() {
     listEl.append(li);
   });
 
-  // Show the empty line only when every task is verified.
   const allDone = tasks.length > 0 && tasks.every((t) => t.state === "verified");
   emptyEl.hidden = !allDone;
 }
@@ -231,27 +314,22 @@ function renderTasks() {
 function actionsFor(task) {
   if (task.state === "todo" || task.state === "declined") {
     const parts = [];
-    if (task.state === "declined") {
-      parts.push(statusPill("Sent back", "declined"));
-    }
-    const done = button("Done", "btn btn--primary", () => setState(task.id, "pending"));
-    parts.push(done);
+    if (task.state === "declined") parts.push(statusPill("Sent back", "declined"));
+    // The child starts a chore with "Do", which opens the guide.
+    parts.push(button("Do", "btn btn--primary", () => openOverlay(task.id)));
     return parts;
   }
 
   if (task.state === "pending") {
-    // Child sees "waiting on a parent"; parent sees verify / decline.
-    const pill = statusPill("Waiting on a parent", "pending");
-    const verify = iconButton("✓", "pbtn pbtn--verify", "Verify task", () =>
-      verifyTask(task.id)
-    );
-    const decline = iconButton("↩", "pbtn pbtn--decline", "Send back", () =>
-      setState(task.id, "declined")
-    );
-    return [pill, verify, decline];
+    return [
+      statusPill("Waiting on a parent", "pending"),
+      iconButton("✓", "pbtn pbtn--verify", "Verify task", () => verifyTask(task.id)),
+      iconButton("↩", "pbtn pbtn--decline", "Send back", () =>
+        setState(task.id, "declined")
+      ),
+    ];
   }
 
-  // verified
   return [statusPill("Verified", "verified")];
 }
 
@@ -277,6 +355,127 @@ function statusPill(text, kind) {
   span.className = "status status--" + kind;
   span.textContent = text;
   return span;
+}
+
+/* ---------- The "Do" overlay ----------------------------- */
+
+function openOverlay(id) {
+  activeTaskId = id;
+  stepIndex = 0;
+  showLearnPhase();
+  overlayEl.hidden = false;
+  document.body.style.overflow = "hidden"; // stop the page behind scrolling
+  stepNextBtn.focus();
+}
+
+function closeOverlay() {
+  stopTimer();
+  overlayEl.hidden = true;
+  document.body.style.overflow = "";
+  activeTaskId = null;
+}
+
+function activeTask() {
+  return tasks.find((t) => t.id === activeTaskId);
+}
+
+/* --- Phase 1: learn the steps --- */
+
+function showLearnPhase() {
+  phaseLearn.hidden = false;
+  phaseDo.hidden = true;
+  const task = activeTask();
+  sheetTitle.textContent = task.name;
+  renderStep();
+}
+
+function renderStep() {
+  const task = activeTask();
+  const total = task.steps.length;
+
+  stepCounter.textContent = `Step ${stepIndex + 1} of ${total}`;
+  stepText.textContent = task.steps[stepIndex];
+
+  // Progress dots
+  stepDots.innerHTML = "";
+  for (let i = 0; i < total; i++) {
+    const dot = document.createElement("span");
+    dot.className =
+      "dot" +
+      (i === stepIndex ? " is-current" : "") +
+      (i < stepIndex ? " is-done" : "");
+    stepDots.append(dot);
+  }
+
+  // On the last step the button starts the chore instead of advancing.
+  stepNextBtn.textContent = stepIndex === total - 1 ? "I'm ready — start" : "Next";
+  stepBackBtn.classList.toggle("is-hidden", stepIndex === 0);
+}
+
+function nextStep() {
+  const task = activeTask();
+  if (stepIndex < task.steps.length - 1) {
+    stepIndex++;
+    renderStep();
+  } else {
+    startDoPhase();
+  }
+}
+
+function prevStep() {
+  if (stepIndex > 0) {
+    stepIndex--;
+    renderStep();
+  }
+}
+
+/* --- Phase 2: the countdown timer --- */
+
+function startDoPhase() {
+  const task = activeTask();
+  phaseLearn.hidden = true;
+  phaseDo.hidden = false;
+  doTitle.textContent = task.name;
+  doDoneBtn.focus();
+
+  const total = task.minutes * 60;
+  let remaining = total;
+
+  timerEl.classList.remove("is-up");
+  timerHint.textContent = "Off you go. Tap “I’ve done it” when you’re finished.";
+  paintTimer(remaining, total);
+
+  stopTimer();
+  timerId = setInterval(() => {
+    remaining--;
+    paintTimer(remaining, total);
+    if (remaining <= 0) {
+      stopTimer();
+      timerEl.classList.add("is-up");
+      timerHint.textContent = "Time's up — finish up, then tap “I’ve done it”.";
+    }
+  }, 1000);
+}
+
+function paintTimer(remaining, total) {
+  const safe = Math.max(0, remaining);
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  timerEl.textContent = `${mins}:${String(secs).padStart(2, "0")}`;
+  timerFill.style.width = (safe / total) * 100 + "%";
+}
+
+function stopTimer() {
+  if (timerId) {
+    clearInterval(timerId);
+    timerId = null;
+  }
+}
+
+function finishDoing() {
+  const id = activeTaskId;
+  closeOverlay();
+  setState(id, "pending");
 }
 
 /* ---------- Actions -------------------------------------- */
@@ -329,7 +528,6 @@ let toastTimer;
 function showToast(message) {
   toastEl.textContent = message;
   toastEl.hidden = false;
-  // let the browser register the change before animating in
   requestAnimationFrame(() => toastEl.classList.add("is-visible"));
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => {
@@ -344,7 +542,7 @@ function update() {
   const points = verifiedPoints();
   balanceEl.textContent = points;
   renderTally(points, shownPoints, pendingPoints());
-  shownPoints = points; // remember for next time's animation
+  shownPoints = points;
   renderTasks();
   updateHint();
 }
@@ -366,6 +564,8 @@ function currentlyDark() {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
+/* ---------- Wiring --------------------------------------- */
+
 themeToggle.addEventListener("click", () => {
   const next = currentlyDark() ? "light" : "dark";
   document.documentElement.setAttribute("data-theme", next);
@@ -377,6 +577,18 @@ themeToggle.addEventListener("click", () => {
 });
 
 resetBtn.addEventListener("click", resetDemo);
+stepNextBtn.addEventListener("click", nextStep);
+stepBackBtn.addEventListener("click", prevStep);
+doDoneBtn.addEventListener("click", finishDoing);
+sheetCloseBtn.addEventListener("click", closeOverlay);
+
+// Close the overlay with Escape, or by tapping the dark backdrop.
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !overlayEl.hidden) closeOverlay();
+});
+overlayEl.addEventListener("click", (e) => {
+  if (e.target === overlayEl) closeOverlay();
+});
 
 /* ---------- Start ---------------------------------------- */
 

@@ -482,6 +482,174 @@ body {
   text-decoration: underline;
 }
 
+/* ---------- The "Do" overlay ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(22, 21, 26, 0.45);
+}
+/* Setting `display` above would otherwise defeat the `hidden`
+   attribute, so make hidden win. */
+.overlay[hidden] {
+  display: none;
+}
+
+.sheet {
+  position: relative;
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: 40px 24px 28px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  animation: sheet-in 0.22s ease-out;
+}
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+
+.sheet__close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  color: var(--slate);
+  font-size: 26px;
+  line-height: 1;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+}
+.sheet__close:hover {
+  background: var(--mist);
+}
+
+.sheet__eyebrow {
+  margin: 0;
+  color: var(--strike);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sheet__title {
+  margin: 4px 0 0;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.sheet__counter {
+  margin: 20px 0 6px;
+  color: var(--slate);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sheet__step {
+  margin: 0 auto 20px;
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.35;
+  min-height: 3.2em;
+  max-width: 22em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Progress dots for the steps */
+.dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 22px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--mist);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.dot.is-current {
+  background: var(--strike);
+  transform: scale(1.25);
+}
+.dot.is-done {
+  background: var(--strike);
+}
+
+.btn--block {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  font-size: 15px;
+  margin-bottom: 8px;
+}
+
+/* Hide the Back button on step one without shifting layout */
+#step-back {
+  visibility: visible;
+}
+#step-back.is-hidden {
+  visibility: hidden;
+}
+
+/* ---------- Timer ---------- */
+.timer {
+  margin: 24px 0 16px;
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.timer.is-up {
+  color: var(--strike);
+}
+
+.timer-bar {
+  height: 8px;
+  width: 100%;
+  max-width: 260px;
+  margin: 0 auto 16px;
+  background: var(--mist);
+  border-radius: var(--r-pill);
+  overflow: hidden;
+}
+.timer-bar__fill {
+  height: 100%;
+  width: 100%;
+  background: var(--strike);
+  border-radius: var(--r-pill);
+  transition: width 1s linear;
+}
+
+.sheet__hint {
+  margin: 0 auto 20px;
+  color: var(--slate);
+  font-size: 13px;
+  max-width: 24em;
+}
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed;
