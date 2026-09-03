@@ -16,14 +16,26 @@ Built with plain **HTML, CSS and JavaScript** — no build tools needed.
 Open `index.html` in a web browser (double-click it, or drag it into a
 browser window). No installation required.
 
-The app has **two sides**, switched with the menu bar at the top:
+The app has **two sides**, switched with the **Child / Parent** menu at the
+top, and a **hamburger menu** (top-left) to move between sections —
+**Chores** and the **Shop**.
 
-- **Child** — the child's points, the tally, and today's chores to do.
-- **Parent** — where the parent verifies finished chores (and, going
-  forward, anything the parent adds: tasks, rewards, settings).
+- **Child** — the child's points, the tally, today's chores, and the shop to
+  spend points in.
+- **Parent** — verifying finished chores, and stocking & pricing the shop.
 
 Everything the child does lives on the Child page; everything the parent
 manages lives on the Parent page.
+
+**Children & colours.** There are three children (Emma, Noah, Ava), switched
+with the row of names under the menu. Each child picks their own colour, and
+their chores are shown in that colour — so on the parent's queue you can tell
+whose chore is whose at a glance.
+
+**The shop.** The parent adds rewards and sets what each costs (e.g. sweets
+10 pts, a movie 15, a sleepover 20). The child browses a kiosk-style grid and
+redeems anything they can afford; rewards they can't afford yet stay visible
+with how many more points they need.
 
 In the demo, the loop runs across both pages:
 

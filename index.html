@@ -25,21 +25,25 @@
 
   <body>
     <div class="screen">
-      <!-- ---------- Top bar: logo + theme toggle ---------- -->
+      <!-- ---------- Top bar: hamburger + logo + theme toggle ---------- -->
       <header class="topbar">
+        <button id="menu-toggle" class="icon-button" type="button" aria-label="Menu" aria-expanded="false">
+          <span class="hamburger" aria-hidden="true"></span>
+        </button>
+
         <!-- The horizontal lockup is the default logo. We show the
              reversed (light) version in dark mode via CSS. -->
         <img
           class="topbar__logo topbar__logo--light"
           src="logo/svg/stash-lockup-horizontal.svg"
           alt="Stash"
-          height="28"
+          height="26"
         />
         <img
           class="topbar__logo topbar__logo--dark"
           src="logo/svg/stash-lockup-horizontal-reversed.svg"
           alt="Stash"
-          height="28"
+          height="26"
         />
 
         <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme">
@@ -47,81 +51,81 @@
         </button>
       </header>
 
-      <!-- ---------- Menu bar: switch between the two sides ----------
-           The app has two pages: one for the child, one for the parent.
-           This demo puts them behind a simple two-tab menu. -->
+      <!-- ---------- Hamburger menu: which section to show ---------- -->
+      <nav id="menu" class="menu" aria-label="Sections" hidden>
+        <button class="menu__item" type="button" data-section="chores">Chores</button>
+        <button class="menu__item" type="button" data-section="shop">Shop</button>
+      </nav>
+
+      <!-- ---------- Who's using it: Child / Parent ---------- -->
       <nav class="tabs" role="tablist" aria-label="Choose who's using the app">
-        <button
-          id="tab-child"
-          class="tab is-active"
-          role="tab"
-          type="button"
-          data-page="child"
-          aria-selected="true"
-        >
+        <button id="tab-child" class="tab is-active" role="tab" type="button" data-page="child" aria-selected="true">
           Child
         </button>
-        <button
-          id="tab-parent"
-          class="tab"
-          role="tab"
-          type="button"
-          data-page="parent"
-          aria-selected="false"
-        >
+        <button id="tab-parent" class="tab" role="tab" type="button" data-page="parent" aria-selected="false">
           Parent
           <span id="tab-parent-badge" class="tab__badge" hidden>0</span>
         </button>
       </nav>
 
-      <!-- ================= CHILD PAGE ================= -->
-      <main id="page-child" class="page" role="tabpanel" aria-labelledby="tab-child">
-        <!-- Hero: the balance is the loudest thing -->
-        <section class="hero" aria-labelledby="balance-label">
-          <p id="balance-label" class="hero__label">Your stash</p>
-          <p class="hero__balance">
-            <span id="balance">0</span>
-            <span class="hero__unit">points</span>
-          </p>
+      <!-- Child switcher (shown on the child pages only) -->
+      <div id="child-switcher" class="child-switcher" aria-label="Choose your child"></div>
 
-          <!-- The tally counter. JavaScript fills this with bundles of five. -->
-          <div id="tally" class="tally" role="img" aria-label="0 points"></div>
+      <!-- ================= PANELS ================= -->
+      <main class="panels">
+        <!-- Child · Chores -->
+        <section id="panel-child-chores" class="panel">
+          <div class="hero">
+            <p id="hero-label" class="hero__label">Your stash</p>
+            <p class="hero__balance">
+              <span id="balance">0</span>
+              <span class="hero__unit">points</span>
+            </p>
+            <div id="tally" class="tally" role="img" aria-label="0 points"></div>
+            <p id="hero-hint" class="hero__hint"></p>
+          </div>
 
-          <p id="hero-hint" class="hero__hint"></p>
-        </section>
+          <div class="color-picker">
+            <p class="color-picker__label">Your colour</p>
+            <div id="color-swatches" class="color-swatches"></div>
+          </div>
 
-        <!-- Today's tasks -->
-        <section class="tasks" aria-labelledby="tasks-heading">
-          <h2 id="tasks-heading" class="section-heading">Today</h2>
+          <h2 class="section-heading">Today</h2>
           <ul id="task-list" class="task-list"></ul>
           <p id="tasks-empty" class="empty-state" hidden>
             Nothing left for today. Nice work.
           </p>
         </section>
-      </main>
 
-      <!-- ================= PARENT PAGE ================= -->
-      <main
-        id="page-parent"
-        class="page"
-        role="tabpanel"
-        aria-labelledby="tab-parent"
-        hidden
-      >
-        <!-- A calm summary of where the child's points stand -->
-        <section class="parent-summary">
-          <p class="parent-summary__label">Your child's stash</p>
-          <p class="parent-summary__balance">
-            <span id="parent-balance">0</span>
-            <span class="hero__unit">points saved</span>
-          </p>
+        <!-- Child · Shop -->
+        <section id="panel-child-shop" class="panel" hidden>
+          <div class="shop-head">
+            <h2 class="section-heading">Shop</h2>
+            <p id="shop-note" class="shop-note"></p>
+          </div>
+          <div id="shop-grid" class="shop-grid"></div>
         </section>
 
-        <!-- The verification queue: what needs a parent's decision -->
-        <section class="tasks" aria-labelledby="queue-heading">
-          <h2 id="queue-heading" class="section-heading">Waiting on you</h2>
+        <!-- Parent · Chores -->
+        <section id="panel-parent-chores" class="panel" hidden>
+          <div id="parent-summary" class="parent-summary"></div>
+          <h2 class="section-heading">Waiting on you</h2>
           <ul id="queue-list" class="task-list"></ul>
           <p id="queue-empty" class="empty-state">Nothing to verify right now.</p>
+        </section>
+
+        <!-- Parent · Shop -->
+        <section id="panel-parent-shop" class="panel" hidden>
+          <h2 class="section-heading">Shop rewards</h2>
+          <p class="section-sub">Add a reward and set what it costs in points.</p>
+          <form id="reward-form" class="reward-form">
+            <input id="reward-emoji" class="reward-form__emoji" type="text" maxlength="2" value="🎁" aria-label="Emoji" />
+            <input id="reward-name" class="reward-form__name" type="text" placeholder="Reward name" aria-label="Reward name" required />
+            <input id="reward-cost" class="reward-form__cost" type="number" min="1" max="999" placeholder="pts" aria-label="Cost in points" required />
+            <button class="btn btn--primary" type="submit">Add</button>
+          </form>
+          <ul id="reward-list" class="reward-list"></ul>
+          <div id="redemptions" class="redemptions"></div>
         </section>
       </main>
 

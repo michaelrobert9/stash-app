@@ -22,14 +22,47 @@
    come back.
    ============================================================ */
 
-const STORAGE_KEY = "stash-tasks-v2";
+const STATE_KEY = "stash-state-v3";
 const THEME_KEY = "stash-theme";
 
-/* The tasks we start with. Each one carries:
+/* ---- Children ----
+   Each child picks their own colour. Their chores and point badges
+   show in that colour, so on the parent's queue you can tell whose
+   chore is whose at a glance. */
+const CHILD_COLORS = [
+  { name: "Purple", value: "#6A4DF4" },
+  { name: "Blue", value: "#2F80ED" },
+  { name: "Green", value: "#27AE60" },
+  { name: "Orange", value: "#F2994A" },
+  { name: "Pink", value: "#E0559E" },
+  { name: "Teal", value: "#17A6A6" },
+];
+
+const DEFAULT_CHILDREN = [
+  { id: "c1", name: "Emma", color: "#6A4DF4" },
+  { id: "c2", name: "Noah", color: "#2F80ED" },
+  { id: "c3", name: "Ava", color: "#27AE60" },
+];
+
+/* ---- The shop ----
+   Rewards the parent stocks and prices. The child spends points here. */
+const DEFAULT_REWARDS = [
+  { id: "r1", name: "Packet of sweets", emoji: "🍬", cost: 10 },
+  { id: "r2", name: "Choose a movie", emoji: "🎬", cost: 15 },
+  { id: "r3", name: "Ice cream", emoji: "🍦", cost: 12 },
+  { id: "r4", name: "Extra screen time", emoji: "📱", cost: 8 },
+  { id: "r5", name: "Sleepover with a friend", emoji: "🛌", cost: 20 },
+  { id: "r6", name: "Pick dinner", emoji: "🍕", cost: 18 },
+];
+
+/* ---- Chore templates ----
+   The chores every child starts with. Each child gets their own copy
+   with its own id, so their progress is tracked separately.
      points   — how many points it's worth
      minutes  — a suggested time, used for the countdown timer
-     steps    — how to do the chore, shown one at a time         */
-const DEFAULT_TASKS = [
+     game     — which mini-game teaches it
+     steps    — how to do the chore (fallback guide)               */
+const CHORE_TEMPLATES = [
   {
     id: 1,
     name: "Wash the dishes",
@@ -105,27 +138,73 @@ const DEFAULT_TASKS = [
   },
 ];
 
-/* Page elements */
-const balanceEl = document.getElementById("balance");
-const tallyEl = document.getElementById("tally");
-const heroHintEl = document.getElementById("hero-hint");
-const listEl = document.getElementById("task-list");
-const emptyEl = document.getElementById("tasks-empty");
+// Build the real task list: every child gets their own copy of every chore.
+function buildDefaultTasks() {
+  const tasks = [];
+  DEFAULT_CHILDREN.forEach((child) => {
+    CHORE_TEMPLATES.forEach((tpl) => {
+      tasks.push({
+        id: `${child.id}-${tpl.id}`,
+        childId: child.id,
+        name: tpl.name,
+        points: tpl.points,
+        minutes: tpl.minutes,
+        game: tpl.game,
+        steps: tpl.steps,
+        state: "todo",
+      });
+    });
+  });
+  return tasks;
+}
+
+/* Shared */
 const toastEl = document.getElementById("toast");
 const resetBtn = document.getElementById("reset");
 const themeToggle = document.getElementById("theme-toggle");
 const footerNote = document.getElementById("footer-note");
 
-/* Menu bar + pages */
+/* Navigation: hamburger menu (sections) + Child/Parent tabs */
+const menuToggle = document.getElementById("menu-toggle");
+const menuEl = document.getElementById("menu");
+const menuItems = Array.from(document.querySelectorAll(".menu__item"));
 const tabs = Array.from(document.querySelectorAll(".tab"));
-const pageChild = document.getElementById("page-child");
-const pageParent = document.getElementById("page-parent");
 const tabParentBadge = document.getElementById("tab-parent-badge");
 
-/* Parent page elements */
-const parentBalanceEl = document.getElementById("parent-balance");
+/* Panels (page × section) */
+const panels = {
+  "child-chores": document.getElementById("panel-child-chores"),
+  "child-shop": document.getElementById("panel-child-shop"),
+  "parent-chores": document.getElementById("panel-parent-chores"),
+  "parent-shop": document.getElementById("panel-parent-shop"),
+};
+
+/* Child · Chores */
+const childSwitcherEl = document.getElementById("child-switcher");
+const heroLabelEl = document.getElementById("hero-label");
+const balanceEl = document.getElementById("balance");
+const tallyEl = document.getElementById("tally");
+const heroHintEl = document.getElementById("hero-hint");
+const colorSwatchesEl = document.getElementById("color-swatches");
+const listEl = document.getElementById("task-list");
+const emptyEl = document.getElementById("tasks-empty");
+
+/* Child · Shop */
+const shopNoteEl = document.getElementById("shop-note");
+const shopGridEl = document.getElementById("shop-grid");
+
+/* Parent · Chores */
+const parentSummaryEl = document.getElementById("parent-summary");
 const queueListEl = document.getElementById("queue-list");
 const queueEmptyEl = document.getElementById("queue-empty");
+
+/* Parent · Shop */
+const rewardForm = document.getElementById("reward-form");
+const rewardEmojiEl = document.getElementById("reward-emoji");
+const rewardNameEl = document.getElementById("reward-name");
+const rewardCostEl = document.getElementById("reward-cost");
+const rewardListEl = document.getElementById("reward-list");
+const redemptionsEl = document.getElementById("redemptions");
 
 /* Overlay elements */
 const overlayEl = document.getElementById("overlay");
@@ -154,7 +233,13 @@ const prefersReducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)"
 ).matches;
 
-let tasks = loadTasks();
+/* ---------- App state ------------------------------------ */
+
+let children = DEFAULT_CHILDREN.map((c) => ({ ...c }));
+let tasks = buildDefaultTasks();
+let rewards = DEFAULT_REWARDS.map((r) => ({ ...r }));
+let redemptions = []; // { childId, name, cost } — what's been redeemed
+let activeChildId = children[0].id; // which child the Child page is showing
 let shownPoints = 0; // how many points the tally is currently showing
 
 /* Overlay working state */
@@ -163,46 +248,91 @@ let stepIndex = 0;
 let timerId = null;
 let activeGame = null;
 
-/* ---------- Saving & loading ------------------------------ */
+/* ---------- Saving & loading ------------------------------
+   Everything lives in one saved object. Task/chore/reward
+   definitions come from the code; only the changeable bits
+   (states, colours, redemptions, the current view) are saved. */
 
-function loadTasks() {
+function loadState() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      // Merge saved states onto the current task definitions, so
-      // steps/points always come from the code, not old storage.
-      const savedStates = JSON.parse(saved);
-      return DEFAULT_TASKS.map((t) => {
-        const match = savedStates.find((s) => s.id === t.id);
-        return { ...t, state: match ? match.state : "todo" };
+    const saved = JSON.parse(localStorage.getItem(STATE_KEY));
+    if (!saved) return;
+
+    if (Array.isArray(saved.children)) {
+      children = DEFAULT_CHILDREN.map((c) => {
+        const m = saved.children.find((s) => s.id === c.id);
+        return { ...c, color: m && m.color ? m.color : c.color };
       });
     }
+    if (saved.taskStates) {
+      tasks.forEach((t) => {
+        if (saved.taskStates[t.id]) t.state = saved.taskStates[t.id];
+      });
+    }
+    if (Array.isArray(saved.rewards)) rewards = saved.rewards;
+    if (Array.isArray(saved.redemptions)) redemptions = saved.redemptions;
+    if (saved.activeChildId && children.some((c) => c.id === saved.activeChildId)) {
+      activeChildId = saved.activeChildId;
+    }
+    if (saved.page === "child" || saved.page === "parent") currentPage = saved.page;
+    if (saved.section === "chores" || saved.section === "shop") {
+      currentSection = saved.section;
+    }
   } catch (e) {
-    /* fall through to defaults */
+    /* start fresh on any problem */
   }
-  return DEFAULT_TASKS.map((t) => ({ ...t }));
 }
 
-function saveTasks() {
+function saveState() {
   try {
-    // We only need to remember each task's state.
-    const states = tasks.map((t) => ({ id: t.id, state: t.state }));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(states));
+    const taskStates = {};
+    tasks.forEach((t) => {
+      if (t.state !== "todo") taskStates[t.id] = t.state;
+    });
+    localStorage.setItem(
+      STATE_KEY,
+      JSON.stringify({
+        children: children.map((c) => ({ id: c.id, color: c.color })),
+        taskStates,
+        rewards,
+        redemptions,
+        activeChildId,
+        page: currentPage,
+        section: currentSection,
+      })
+    );
   } catch (e) {
     /* storage might be unavailable — the demo still works */
   }
 }
 
-/* ---------- Points --------------------------------------- */
+/* ---------- Children & points ---------------------------- */
 
-function verifiedPoints() {
-  return tasks
-    .filter((t) => t.state === "verified")
-    .reduce((sum, t) => sum + t.points, 0);
+function getChild(id) {
+  return children.find((c) => c.id === id);
 }
 
-function pendingPoints() {
-  return tasks
+function activeChild() {
+  return getChild(activeChildId) || children[0];
+}
+
+function tasksFor(childId) {
+  return tasks.filter((t) => t.childId === childId);
+}
+
+// Points earned (verified) by a child, minus what they've spent.
+function childPoints(childId) {
+  const earned = tasksFor(childId)
+    .filter((t) => t.state === "verified")
+    .reduce((sum, t) => sum + t.points, 0);
+  const spent = redemptions
+    .filter((r) => r.childId === childId)
+    .reduce((sum, r) => sum + r.cost, 0);
+  return earned - spent;
+}
+
+function pendingPointsFor(childId) {
+  return tasksFor(childId)
     .filter((t) => t.state === "pending")
     .reduce((sum, t) => sum + t.points, 0);
 }
@@ -299,13 +429,15 @@ function makeStrike(isNew) {
   return line;
 }
 
-/* ---------- Task rows (shared by both pages) -------------- */
-
-// Build one task row: the name, its point badge, and whatever
-// action elements the caller passes in.
-function taskRow(task, actionEls, extraClass) {
+/* ---------- Task rows (shared by both pages) --------------
+   Every row is tinted with the owning child's colour via the
+   `--accent` custom property (a coloured stripe down the left). */
+function taskRow(task, actionEls, opts) {
+  opts = opts || {};
+  const child = getChild(task.childId);
   const li = document.createElement("li");
-  li.className = "task" + (extraClass ? " " + extraClass : "");
+  li.className = "task" + (opts.verified ? " task--verified" : "");
+  if (child) li.style.setProperty("--accent", child.color);
 
   const main = document.createElement("div");
   main.className = "task__main";
@@ -314,11 +446,22 @@ function taskRow(task, actionEls, extraClass) {
   name.className = "task__name";
   name.textContent = task.name;
 
+  const meta = document.createElement("div");
+  meta.className = "task__meta";
+  // On the parent's mixed queue, show whose chore it is.
+  if (opts.showChild && child) {
+    const chip = document.createElement("span");
+    chip.className = "child-chip";
+    chip.style.background = child.color;
+    chip.textContent = child.name;
+    meta.append(chip);
+  }
   const badge = document.createElement("span");
   badge.className = "badge";
   badge.innerHTML = `${task.points}<span class="badge__unit">pts</span>`;
+  meta.append(badge);
 
-  main.append(name, badge);
+  main.append(name, meta);
 
   const actions = document.createElement("div");
   actions.className = "task__actions";
@@ -328,27 +471,71 @@ function taskRow(task, actionEls, extraClass) {
   return li;
 }
 
-/* ---------- Child page: today's tasks -------------------- */
+/* ---------- Child · Chores ------------------------------- */
 
-function renderTasks() {
-  listEl.innerHTML = "";
-  tasks.forEach((task) => {
-    const verified = task.state === "verified";
-    listEl.append(taskRow(task, actionsFor(task), verified ? "task--verified" : ""));
+function renderChildChores() {
+  const child = activeChild();
+  const points = childPoints(child.id);
+
+  heroLabelEl.textContent = `${child.name}'s stash`;
+  balanceEl.textContent = points;
+  renderTally(points, shownPoints, pendingPointsFor(child.id));
+  shownPoints = points;
+  updateHint(child.id);
+
+  // Colour swatches for the child to pick their colour.
+  colorSwatchesEl.innerHTML = "";
+  CHILD_COLORS.forEach((c) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "swatch" + (c.value === child.color ? " is-selected" : "");
+    b.style.background = c.value;
+    b.setAttribute("aria-label", c.name);
+    b.addEventListener("click", () => setChildColor(child.id, c.value));
+    colorSwatchesEl.append(b);
   });
 
-  const allDone = tasks.length > 0 && tasks.every((t) => t.state === "verified");
-  emptyEl.hidden = !allDone;
+  // This child's chores.
+  listEl.innerHTML = "";
+  const mine = tasksFor(child.id);
+  mine.forEach((task) => {
+    listEl.append(taskRow(task, actionsFor(task), { verified: task.state === "verified" }));
+  });
+  emptyEl.hidden = !mine.every((t) => t.state === "verified");
 }
 
-/* ---------- Parent page: the verification queue ---------- */
+// The child rows: Do a chore, or show its status. Verifying is a
+// parent action, so it lives on the Parent page instead.
+function actionsFor(task) {
+  if (task.state === "todo" || task.state === "declined") {
+    const parts = [];
+    if (task.state === "declined") parts.push(statusPill("Sent back", "declined"));
+    parts.push(button("Do", "btn btn--primary", () => openOverlay(task.id)));
+    return parts;
+  }
+  if (task.state === "pending") {
+    return [statusPill("Waiting on a parent", "pending")];
+  }
+  return [statusPill("Verified", "verified")];
+}
 
-function renderParent() {
-  parentBalanceEl.textContent = verifiedPoints();
+/* ---------- Parent · Chores (verification queue) --------- */
 
-  // Only tasks the child has finished need a parent's decision.
+function renderParentChores() {
+  // A calm per-child summary of where points stand.
+  parentSummaryEl.innerHTML = "";
+  children.forEach((child) => {
+    const card = document.createElement("div");
+    card.className = "child-total";
+    card.style.setProperty("--accent", child.color);
+    const dot = `<span class="child-total__dot" style="background:${child.color}"></span>`;
+    card.innerHTML = `${dot}<span class="child-total__name">${child.name}</span><span class="child-total__pts">${childPoints(
+      child.id
+    )} pts</span>`;
+    parentSummaryEl.append(card);
+  });
+
   const waiting = tasks.filter((t) => t.state === "pending");
-
   queueListEl.innerHTML = "";
   waiting.forEach((task) => {
     const actions = [
@@ -357,32 +544,120 @@ function renderParent() {
         setState(task.id, "declined")
       ),
     ];
-    queueListEl.append(taskRow(task, actions));
+    queueListEl.append(taskRow(task, actions, { showChild: true }));
   });
-
   queueEmptyEl.hidden = waiting.length > 0;
 
-  // Badge on the Parent tab shows how many are waiting.
   tabParentBadge.textContent = waiting.length;
   tabParentBadge.hidden = waiting.length === 0;
 }
 
-// Which buttons/pills a task shows on the CHILD page depends on its state.
-// Verifying is a parent action, so it lives on the Parent page instead.
-function actionsFor(task) {
-  if (task.state === "todo" || task.state === "declined") {
-    const parts = [];
-    if (task.state === "declined") parts.push(statusPill("Sent back", "declined"));
-    // The child starts a chore with "Do", which opens the guide.
-    parts.push(button("Do", "btn btn--primary", () => openOverlay(task.id)));
-    return parts;
+/* ---------- Child · Shop (the kiosk) --------------------- */
+
+function renderChildShop() {
+  const child = activeChild();
+  const points = childPoints(child.id);
+  shopNoteEl.textContent = `${child.name}, you have ${points} ${
+    points === 1 ? "point" : "points"
+  } to spend.`;
+
+  shopGridEl.innerHTML = "";
+  if (rewards.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "The shop is empty. A parent can add rewards.";
+    shopGridEl.append(empty);
+    return;
   }
 
-  if (task.state === "pending") {
-    return [statusPill("Waiting on a parent", "pending")];
-  }
+  rewards.forEach((reward) => {
+    const affordable = points >= reward.cost;
+    const card = document.createElement("div");
+    card.className = "shop-card" + (affordable ? "" : " shop-card--short");
 
-  return [statusPill("Verified", "verified")];
+    const emoji = document.createElement("div");
+    emoji.className = "shop-card__emoji";
+    emoji.textContent = reward.emoji;
+
+    const name = document.createElement("p");
+    name.className = "shop-card__name";
+    name.textContent = reward.name;
+
+    const cost = document.createElement("p");
+    cost.className = "shop-card__cost";
+    cost.textContent = `${reward.cost} pts`;
+
+    card.append(emoji, name, cost);
+
+    if (affordable) {
+      const b = button("Redeem", "btn btn--primary shop-card__btn", () =>
+        redeem(child.id, reward.id)
+      );
+      b.style.background = child.color;
+      b.style.borderColor = child.color;
+      card.append(b);
+    } else {
+      const need = document.createElement("p");
+      need.className = "shop-card__need";
+      need.textContent = `${reward.cost - points} more to go`;
+      card.append(need);
+    }
+    shopGridEl.append(card);
+  });
+}
+
+/* ---------- Parent · Shop (stock & price) ---------------- */
+
+function renderParentShop() {
+  rewardListEl.innerHTML = "";
+  rewards.forEach((reward) => {
+    const li = document.createElement("li");
+    li.className = "reward";
+    li.innerHTML = `
+      <span class="reward__emoji">${reward.emoji}</span>
+      <span class="reward__name">${reward.name}</span>
+      <span class="badge">${reward.cost}<span class="badge__unit">pts</span></span>`;
+    const del = iconButton("×", "pbtn pbtn--decline reward__del", "Remove reward", () =>
+      deleteReward(reward.id)
+    );
+    li.append(del);
+    rewardListEl.append(li);
+  });
+
+  // A short log of what's been redeemed, so the parent knows what to give.
+  redemptionsEl.innerHTML = "";
+  if (redemptions.length) {
+    const h = document.createElement("h3");
+    h.className = "redemptions__title";
+    h.textContent = "Recently redeemed";
+    redemptionsEl.append(h);
+    redemptions
+      .slice(-5)
+      .reverse()
+      .forEach((r) => {
+        const child = getChild(r.childId);
+        const row = document.createElement("p");
+        row.className = "redemptions__row";
+        const who = child ? child.name : "A child";
+        row.textContent = `${who} redeemed ${r.name} (${r.cost} pts)`;
+        redemptionsEl.append(row);
+      });
+  }
+}
+
+/* ---------- Child switcher ------------------------------- */
+
+function renderChildSwitcher() {
+  childSwitcherEl.innerHTML = "";
+  children.forEach((child) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "child-tab" + (child.id === activeChildId ? " is-active" : "");
+    b.style.setProperty("--accent", child.color);
+    b.innerHTML = `<span class="child-tab__dot" style="background:${child.color}"></span>${child.name}`;
+    b.addEventListener("click", () => setActiveChild(child.id));
+    childSwitcherEl.append(b);
+  });
 }
 
 /* ---------- Small element helpers ------------------------ */
@@ -1233,7 +1508,7 @@ function setState(id, state) {
   const task = tasks.find((t) => t.id === id);
   if (!task) return;
   task.state = state;
-  saveTasks();
+  saveState();
   update();
 }
 
@@ -1241,23 +1516,73 @@ function verifyTask(id) {
   const task = tasks.find((t) => t.id === id);
   if (!task) return;
   task.state = "verified";
-  saveTasks();
+  saveState();
   update();
   showToast(`+${task.points} ${task.points === 1 ? "point" : "points"}`);
 }
 
+function setActiveChild(id) {
+  activeChildId = id;
+  shownPoints = childPoints(id); // no draw-on animation just for switching
+  saveState();
+  renderChildSwitcher();
+  update();
+}
+
+function setChildColor(id, color) {
+  const child = getChild(id);
+  if (!child) return;
+  child.color = color;
+  saveState();
+  renderChildSwitcher();
+  update();
+}
+
+function redeem(childId, rewardId) {
+  const reward = rewards.find((r) => r.id === rewardId);
+  if (!reward) return;
+  if (childPoints(childId) < reward.cost) return; // can't afford
+  redemptions.push({ childId, name: reward.name, cost: reward.cost });
+  saveState();
+  update();
+  showToast(`Redeemed ${reward.name}!`);
+}
+
+function addReward(name, cost, emoji) {
+  rewards.push({
+    id: "r" + Date.now(),
+    name,
+    cost,
+    emoji: emoji || "🎁",
+  });
+  saveState();
+  update();
+}
+
+function deleteReward(id) {
+  rewards = rewards.filter((r) => r.id !== id);
+  saveState();
+  update();
+}
+
 function resetDemo() {
-  tasks = DEFAULT_TASKS.map((t) => ({ ...t }));
+  children = DEFAULT_CHILDREN.map((c) => ({ ...c }));
+  tasks = buildDefaultTasks();
+  rewards = DEFAULT_REWARDS.map((r) => ({ ...r }));
+  redemptions = [];
+  activeChildId = children[0].id;
   shownPoints = 0;
-  saveTasks();
+  saveState();
+  renderChildSwitcher();
   update();
 }
 
 /* ---------- The hint under the balance ------------------- */
 
-function updateHint() {
-  const pending = tasks.filter((t) => t.state === "pending").length;
-  const todo = tasks.filter(
+function updateHint(childId) {
+  const mine = tasksFor(childId);
+  const pending = mine.filter((t) => t.state === "pending").length;
+  const todo = mine.filter(
     (t) => t.state === "todo" || t.state === "declined"
   ).length;
 
@@ -1285,45 +1610,80 @@ function showToast(message) {
   }, 1800);
 }
 
-/* ---------- Menu bar (Child / Parent) -------------------- */
+/* ---------- Navigation: page (who) × section (what) ------ */
 
-const PAGE_KEY = "stash-page";
-let currentPage = "child";
+let currentPage = "child"; // child | parent
+let currentSection = "chores"; // chores | shop
 
-function showPage(page) {
+function setPage(page) {
   currentPage = page;
-  pageChild.hidden = page !== "child";
-  pageParent.hidden = page !== "parent";
+  saveState();
+  showView();
+}
+
+function setSection(section) {
+  currentSection = section;
+  closeMenu();
+  saveState();
+  showView();
+}
+
+function toggleMenu() {
+  menuEl.hidden ? openMenu() : closeMenu();
+}
+function openMenu() {
+  menuEl.hidden = false;
+  menuToggle.setAttribute("aria-expanded", "true");
+}
+function closeMenu() {
+  menuEl.hidden = true;
+  menuToggle.setAttribute("aria-expanded", "false");
+}
+
+// Show the one panel matching the current page + section, and keep
+// the tabs / menu / footer in step.
+function showView() {
+  const key = `${currentPage}-${currentSection}`;
+  Object.entries(panels).forEach(([k, el]) => (el.hidden = k !== key));
+
+  // The child switcher only makes sense on the child pages.
+  childSwitcherEl.hidden = currentPage !== "child";
+
   tabs.forEach((tab) => {
-    const active = tab.dataset.page === page;
+    const active = tab.dataset.page === currentPage;
     tab.classList.toggle("is-active", active);
     tab.setAttribute("aria-selected", active ? "true" : "false");
   });
+  menuItems.forEach((item) =>
+    item.classList.toggle("is-active", item.dataset.section === currentSection)
+  );
+
   updateFooterNote();
-  try {
-    localStorage.setItem(PAGE_KEY, page);
-  } catch (e) {
-    /* ignore */
-  }
 }
 
 function updateFooterNote() {
-  footerNote.innerHTML =
-    currentPage === "child"
-      ? "Tap <strong>Do</strong> to learn a chore and do it. Once you've done it, a parent verifies it on the Parent page."
-      : "Tap <strong>✓</strong> to verify a finished chore (points are added then), or <strong>↩</strong> to send it back.";
+  let note;
+  if (currentSection === "shop") {
+    note =
+      currentPage === "child"
+        ? "Spend your points on a reward you can afford."
+        : "Add rewards and set what each costs. The child spends points on them.";
+  } else {
+    note =
+      currentPage === "child"
+        ? "Tap <strong>Do</strong> to learn a chore and do it. A parent verifies it afterwards."
+        : "Tap <strong>✓</strong> to verify a finished chore (points are added then), or <strong>↩</strong> to send it back.";
+  }
+  footerNote.innerHTML = note;
 }
 
 /* ---------- Re-draw everything --------------------------- */
 
 function update() {
-  const points = verifiedPoints();
-  balanceEl.textContent = points;
-  renderTally(points, shownPoints, pendingPoints());
-  shownPoints = points;
-  renderTasks();
-  renderParent();
-  updateHint();
+  renderChildChores();
+  renderChildShop();
+  renderParentChores();
+  renderParentShop();
 }
 
 /* ---------- Theme toggle --------------------------------- */
@@ -1361,9 +1721,33 @@ stepBackBtn.addEventListener("click", prevStep);
 doDoneBtn.addEventListener("click", finishDoing);
 sheetCloseBtn.addEventListener("click", closeOverlay);
 
-// Menu-bar tabs switch between the child and parent pages.
-tabs.forEach((tab) => {
-  tab.addEventListener("click", () => showPage(tab.dataset.page));
+// Child / Parent tabs.
+tabs.forEach((tab) => tab.addEventListener("click", () => setPage(tab.dataset.page)));
+
+// Hamburger menu → sections (Chores / Shop).
+menuToggle.addEventListener("click", toggleMenu);
+menuItems.forEach((item) =>
+  item.addEventListener("click", () => setSection(item.dataset.section))
+);
+// Tapping elsewhere closes the menu.
+document.addEventListener("click", (e) => {
+  if (!menuEl.hidden && !menuEl.contains(e.target) && e.target !== menuToggle) {
+    closeMenu();
+  }
+});
+
+// Parent adds a reward to the shop.
+rewardForm.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = rewardNameEl.value.trim();
+  const cost = parseInt(rewardCostEl.value, 10);
+  const emoji = rewardEmojiEl.value.trim();
+  if (!name || !cost || cost < 1) return;
+  addReward(name, cost, emoji);
+  rewardNameEl.value = "";
+  rewardCostEl.value = "";
+  rewardEmojiEl.value = "🎁";
+  rewardNameEl.focus();
 });
 
 // Close the overlay with Escape, or by tapping the dark backdrop.
@@ -1376,17 +1760,8 @@ overlayEl.addEventListener("click", (e) => {
 
 /* ---------- Start ---------------------------------------- */
 
-function applyStoredPage() {
-  let page = "child";
-  try {
-    const saved = localStorage.getItem(PAGE_KEY);
-    if (saved === "child" || saved === "parent") page = saved;
-  } catch (e) {
-    /* ignore */
-  }
-  showPage(page);
-}
-
 applyStoredTheme();
-applyStoredPage();
+loadState();
+renderChildSwitcher();
+showView();
 update();
