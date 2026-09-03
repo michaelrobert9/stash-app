@@ -36,6 +36,7 @@ const DEFAULT_TASKS = [
     points: 3,
     minutes: 5,
     state: "todo",
+    game: "dishes", // this chore has an interactive simulation
     steps: [
       "Scrape any leftover food into the bin.",
       "Rinse each plate under warm water.",
@@ -113,8 +114,13 @@ const themeToggle = document.getElementById("theme-toggle");
 /* Overlay elements */
 const overlayEl = document.getElementById("overlay");
 const sheetCloseBtn = document.getElementById("sheet-close");
+const phaseGame = document.getElementById("phase-game");
 const phaseLearn = document.getElementById("phase-learn");
 const phaseDo = document.getElementById("phase-do");
+const gameTitle = document.getElementById("game-title");
+const gameInstruction = document.getElementById("game-instruction");
+const gameStage = document.getElementById("game-stage");
+const gameProgress = document.getElementById("game-progress");
 const sheetTitle = document.getElementById("sheet-title");
 const stepCounter = document.getElementById("step-counter");
 const stepText = document.getElementById("step-text");
@@ -139,6 +145,7 @@ let shownPoints = 0; // how many points the tally is currently showing
 let activeTaskId = null;
 let stepIndex = 0;
 let timerId = null;
+let dishGame = null;
 
 /* ---------- Saving & loading ------------------------------ */
 
@@ -362,17 +369,41 @@ function statusPill(text, kind) {
 function openOverlay(id) {
   activeTaskId = id;
   stepIndex = 0;
-  showLearnPhase();
   overlayEl.hidden = false;
   document.body.style.overflow = "hidden"; // stop the page behind scrolling
-  stepNextBtn.focus();
+
+  const task = activeTask();
+  if (task.game === "dishes") {
+    showGamePhase();
+  } else {
+    showLearnPhase();
+    stepNextBtn.focus();
+  }
+}
+
+function showPhase(which) {
+  phaseGame.hidden = which !== "game";
+  phaseLearn.hidden = which !== "learn";
+  phaseDo.hidden = which !== "do";
 }
 
 function closeOverlay() {
   stopTimer();
+  if (dishGame) dishGame.teardown();
   overlayEl.hidden = true;
   document.body.style.overflow = "";
   activeTaskId = null;
+}
+
+/* --- Phase 0: the simulation game --- */
+
+function showGamePhase() {
+  showPhase("game");
+  const task = activeTask();
+  gameTitle.textContent = task.name;
+  // When the game is finished, move on to the timer.
+  dishGame = new DishGame(task, () => startDoPhase());
+  dishGame.start();
 }
 
 function activeTask() {
@@ -382,8 +413,7 @@ function activeTask() {
 /* --- Phase 1: learn the steps --- */
 
 function showLearnPhase() {
-  phaseLearn.hidden = false;
-  phaseDo.hidden = true;
+  showPhase("learn");
   const task = activeTask();
   sheetTitle.textContent = task.name;
   renderStep();
@@ -433,8 +463,11 @@ function prevStep() {
 
 function startDoPhase() {
   const task = activeTask();
-  phaseLearn.hidden = true;
-  phaseDo.hidden = false;
+  if (dishGame) {
+    dishGame.teardown();
+    dishGame = null;
+  }
+  showPhase("do");
   doTitle.textContent = task.name;
   doDoneBtn.focus();
 
@@ -476,6 +509,360 @@ function finishDoing() {
   const id = activeTaskId;
   closeOverlay();
   setState(id, "pending");
+}
+
+/* ============================================================
+   DishGame — the "wash the dishes" simulation
+
+   Three dishes, each done in three moves:
+     1. Drag the dish into the sink.
+     2. Scrub it clean, going round in circles (a guide shows how).
+     3. Drag the clean dish into the dishwasher rack.
+
+   It uses pointer events, so it works with a mouse or a finger.
+   ============================================================ */
+
+const TOTAL_DISHES = 3;
+const DISH_SIZES = [92, 82, 74]; // a plate, then smaller dishes
+// Where the dirt sits on each dish, in the SVG's 0–100 grid.
+const DIRT_SPOTS = [
+  [42, 44],
+  [59, 42],
+  [46, 60],
+  [61, 57],
+];
+
+class DishGame {
+  constructor(task, onComplete) {
+    this.task = task;
+    this.onComplete = onComplete;
+    this.round = 0;
+    this.dead = false;
+    this.timers = [];
+    // Bound handlers so we can add/remove the same references.
+    this.onDown = this.handleDown.bind(this);
+    this.onMove = this.handleMove.bind(this);
+    this.onUp = this.handleUp.bind(this);
+  }
+
+  start() {
+    this.buildStage();
+    this.nextDish();
+  }
+
+  teardown() {
+    this.dead = true;
+    this.timers.forEach((t) => clearTimeout(t));
+    this.timers = [];
+    gameStage.innerHTML = "";
+  }
+
+  later(fn, ms) {
+    const id = setTimeout(() => {
+      if (!this.dead) fn();
+    }, ms);
+    this.timers.push(id);
+  }
+
+  buildStage() {
+    gameStage.innerHTML = "";
+    const W = gameStage.clientWidth;
+    const H = gameStage.clientHeight;
+
+    // The sink (top, centre) and the dishwasher rack (bottom right).
+    this.sink = { x: (W - 150) / 2, y: 18, w: 150, h: 112 };
+    this.rack = { x: W - 132, y: H - 102, w: 120, h: 86 };
+    this.pile = { cx: 64, cy: H - 54 }; // where a fresh dish appears
+
+    this.sinkEl = this.makeZone(this.sink, "sink", "Sink");
+    this.rackEl = this.makeZone(this.rack, "rack", "");
+    const rackLines = document.createElement("div");
+    rackLines.className = "rack-lines";
+    const rackLabel = document.createElement("span");
+    rackLabel.className = "zone__label";
+    rackLabel.textContent = "Dishwasher";
+    this.rackEl.append(rackLines, rackLabel);
+
+    // A sponge that follows the finger while scrubbing.
+    this.sponge = document.createElement("div");
+    this.sponge.className = "sponge";
+    gameStage.append(this.sponge);
+  }
+
+  makeZone(rect, kind, label) {
+    const el = document.createElement("div");
+    el.className = "zone zone--" + kind;
+    el.style.left = rect.x + "px";
+    el.style.top = rect.y + "px";
+    el.style.width = rect.w + "px";
+    el.style.height = rect.h + "px";
+    if (label) {
+      const span = document.createElement("span");
+      span.className = "zone__label";
+      span.textContent = label;
+      el.append(span);
+    }
+    gameStage.append(el);
+    return el;
+  }
+
+  nextDish() {
+    this.round++;
+    if (this.round > TOTAL_DISHES) {
+      this.finish();
+      return;
+    }
+    gameProgress.textContent = `Dish ${this.round} of ${TOTAL_DISHES}`;
+
+    this.size = DISH_SIZES[this.round - 1] || 80;
+    this.buildDish();
+    this.setStep("toSink");
+  }
+
+  buildDish() {
+    // Remove any previous dish.
+    if (this.dish) this.dish.remove();
+
+    const size = this.size;
+    const dish = document.createElement("div");
+    dish.className = "dish";
+    dish.style.width = size + "px";
+    dish.style.height = size + "px";
+
+    dish.innerHTML = `
+      <svg class="dish__svg" viewBox="0 0 100 100" width="${size}" height="${size}">
+        <circle class="dish-body" cx="50" cy="50" r="46"></circle>
+        <circle cx="50" cy="50" r="36" fill="none" stroke="var(--mist)" stroke-width="1.5"></circle>
+        <g class="dirt-layer"></g>
+        <g class="guide-layer"></g>
+      </svg>`;
+
+    gameStage.append(dish);
+    this.dish = dish;
+    this.dirtLayer = dish.querySelector(".dirt-layer");
+    this.guideLayer = dish.querySelector(".guide-layer");
+
+    // Start the dish at the pile, centred on the pile point.
+    this.moveDishTo(this.pile.cx - size / 2, this.pile.cy - size / 2);
+
+    dish.addEventListener("pointerdown", this.onDown);
+  }
+
+  moveDishTo(x, y) {
+    const W = gameStage.clientWidth;
+    const H = gameStage.clientHeight;
+    // Keep the dish inside the stage.
+    this.dishX = Math.max(0, Math.min(x, W - this.size));
+    this.dishY = Math.max(0, Math.min(y, H - this.size));
+    this.dish.style.left = this.dishX + "px";
+    this.dish.style.top = this.dishY + "px";
+  }
+
+  dishCenter() {
+    return { x: this.dishX + this.size / 2, y: this.dishY + this.size / 2 };
+  }
+
+  setStep(step) {
+    this.step = step;
+    if (step === "toSink") {
+      gameInstruction.textContent = "Drag the plate into the sink.";
+      this.highlight(this.sinkEl);
+    } else if (step === "scrub") {
+      gameInstruction.textContent =
+        "Scrub round and round in circles until the plate is sparkling.";
+      this.highlight(null);
+      this.addDirt();
+      this.addGuide();
+    } else if (step === "toRack") {
+      gameInstruction.textContent = "Nice! Now put it in the dishwasher.";
+      this.highlight(this.rackEl);
+    }
+  }
+
+  highlight(zoneEl) {
+    [this.sinkEl, this.rackEl].forEach((z) =>
+      z.classList.toggle("is-target", z === zoneEl)
+    );
+  }
+
+  addDirt() {
+    this.dirt = DIRT_SPOTS.map(([cx, cy]) => {
+      const c = document.createElementNS(SVG_NS, "circle");
+      c.setAttribute("cx", cx);
+      c.setAttribute("cy", cy);
+      c.setAttribute("r", 7);
+      c.setAttribute("class", "dirt");
+      this.dirtLayer.append(c);
+      return { cx, cy, cleaned: 0, el: c };
+    });
+  }
+
+  addGuide() {
+    this.guideLayer.innerHTML = `
+      <circle class="scrub-guide" cx="50" cy="50" r="24"></circle>
+      <g class="scrub-orbit"><circle class="scrub-guide__dot" cx="50" cy="26" r="4"></circle></g>`;
+  }
+
+  clearGuide() {
+    if (this.guideLayer) this.guideLayer.innerHTML = "";
+  }
+
+  /* ----- Pointer handling ----- */
+
+  posInStage(e) {
+    const r = gameStage.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  handleDown(e) {
+    if (this.dead) return;
+    this.dish.setPointerCapture(e.pointerId);
+    const p = this.posInStage(e);
+
+    if (this.step === "scrub") {
+      this.scrubbing = true;
+      this.sponge.classList.add("is-active");
+      this.scrubAt(p);
+    } else {
+      // dragging (toSink or toRack)
+      this.dragging = true;
+      this.dish.classList.add("is-dragging");
+      this.grabDX = p.x - this.dishX;
+      this.grabDY = p.y - this.dishY;
+    }
+  }
+
+  handleMove(e) {
+    if (this.dead) return;
+    const p = this.posInStage(e);
+    if (this.dragging) {
+      this.moveDishTo(p.x - this.grabDX, p.y - this.grabDY);
+    } else if (this.scrubbing) {
+      this.scrubAt(p);
+    }
+  }
+
+  handleUp(e) {
+    if (this.dead) return;
+    try {
+      this.dish.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      /* ignore */
+    }
+    if (this.dragging) {
+      this.dragging = false;
+      this.dish.classList.remove("is-dragging");
+      this.checkDrop();
+    } else if (this.scrubbing) {
+      this.scrubbing = false;
+      this.sponge.classList.remove("is-active");
+    }
+  }
+
+  scrubAt(p) {
+    // Move the sponge to the finger.
+    this.sponge.style.left = p.x + "px";
+    this.sponge.style.top = p.y + "px";
+
+    const scale = this.size / 100;
+    let remaining = 0;
+    this.dirt.forEach((spot) => {
+      if (spot.cleaned >= 1) return;
+      const sx = this.dishX + spot.cx * scale;
+      const sy = this.dishY + spot.cy * scale;
+      const dist = Math.hypot(p.x - sx, p.y - sy);
+      if (dist < 26) {
+        spot.cleaned = Math.min(1, spot.cleaned + 0.16);
+        spot.el.style.opacity = String(1 - spot.cleaned);
+        if (spot.cleaned >= 1) spot.el.remove();
+      }
+      if (spot.cleaned < 1) remaining++;
+    });
+
+    if (remaining === 0 && !this.cleaned) {
+      this.cleaned = true;
+      this.onDishClean();
+    }
+  }
+
+  onDishClean() {
+    this.scrubbing = false;
+    this.sponge.classList.remove("is-active");
+    this.clearGuide();
+    this.sparkle();
+    this.setStep("toRack");
+  }
+
+  sparkle() {
+    const s = document.createElement("div");
+    s.className = "sparkle";
+    s.textContent = "✦";
+    s.style.left = this.dishX + this.size / 2 - 10 + "px";
+    s.style.top = this.dishY + this.size / 2 - 12 + "px";
+    gameStage.append(s);
+    this.later(() => s.remove(), 600);
+  }
+
+  checkDrop() {
+    const c = this.dishCenter();
+    if (this.step === "toSink") {
+      if (pointInRect(c, this.sink)) {
+        this.snapToRect(this.sink);
+        this.cleaned = false;
+        this.setStep("scrub");
+      } else {
+        this.moveDishTo(this.pile.cx - this.size / 2, this.pile.cy - this.size / 2);
+      }
+    } else if (this.step === "toRack") {
+      if (pointInRect(c, this.rack)) {
+        this.stowInRack();
+      } else {
+        this.snapToRect(this.sink); // back to the sink
+      }
+    }
+  }
+
+  snapToRect(rect) {
+    this.moveDishTo(
+      rect.x + rect.w / 2 - this.size / 2,
+      rect.y + rect.h / 2 - this.size / 2
+    );
+  }
+
+  stowInRack() {
+    // Shrink the dish into the rack, then bring on the next one.
+    const dish = this.dish;
+    dish.removeEventListener("pointerdown", this.onDown);
+    dish.style.transition = "transform 0.3s ease, opacity 0.3s ease";
+    dish.style.transformOrigin = "center";
+    dish.style.transform = "scale(0.35)";
+    dish.style.opacity = "0";
+    this.later(() => {
+      dish.remove();
+      this.nextDish();
+    }, 300);
+  }
+
+  finish() {
+    this.highlight(null);
+    gameInstruction.textContent = "Sparkling clean! Ready to do it for real?";
+    gameProgress.textContent = "";
+    // A short beat, then hand over to the timer phase.
+    this.later(() => this.onComplete(), 700);
+  }
+}
+
+// Track pointer moves/releases at the document level too, so a fast
+// drag that leaves the dish still works.
+document.addEventListener("pointermove", (e) => {
+  if (dishGame && !dishGame.dead) dishGame.handleMove(e);
+});
+document.addEventListener("pointerup", (e) => {
+  if (dishGame && !dishGame.dead) dishGame.handleUp(e);
+});
+
+function pointInRect(p, r) {
+  return p.x >= r.x && p.x <= r.x + r.w && p.y >= r.y && p.y <= r.y + r.h;
 }
 
 /* ---------- Actions -------------------------------------- */

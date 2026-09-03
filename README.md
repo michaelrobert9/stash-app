@@ -18,11 +18,14 @@ browser window). No installation required.
 
 In the demo, the whole loop happens on one screen:
 
-1. Tap **Do** on a task — as the child. A short **step-by-step guide** shows
-   how to do the chore.
-2. When you've read the steps, a gentle **timer** starts and you go and do
-   the real chore. Tap **I've done it** when you're finished — the task
-   becomes _waiting on a parent_.
+1. Tap **Do** on a task — as the child.
+   - **Wash the dishes** opens an interactive **simulation game**: drag each
+     dirty plate into the sink, scrub it clean by going round in circles
+     (a guide shows the pattern), then drag it into the dishwasher.
+   - The other chores show a short **step-by-step guide** for now.
+2. Once you've practised, a gentle **timer** starts and you go and do the
+   real chore. Tap **I've done it** when you're finished — the task becomes
+   _waiting on a parent_.
 3. Tap **✓** to verify — as the parent. The points are added and the tally
    counter draws the new strokes. (Or tap **↩** to send the task back.)
 
