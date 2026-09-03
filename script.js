@@ -164,12 +164,14 @@ const resetBtn = document.getElementById("reset");
 const themeToggle = document.getElementById("theme-toggle");
 const footerNote = document.getElementById("footer-note");
 
-/* Navigation: hamburger menu (sections) + Child/Parent tabs */
+/* Navigation: one hamburger drawer holds everything */
 const menuToggle = document.getElementById("menu-toggle");
 const menuEl = document.getElementById("menu");
-const menuItems = Array.from(document.querySelectorAll(".menu__item"));
-const tabs = Array.from(document.querySelectorAll(".tab"));
-const tabParentBadge = document.getElementById("tab-parent-badge");
+const menuClose = document.getElementById("menu-close");
+const drawerBackdrop = document.getElementById("drawer-backdrop");
+const drawerItems = Array.from(document.querySelectorAll(".drawer__item"));
+const drawerParentBadge = document.getElementById("drawer-parent-badge");
+const menuDot = document.getElementById("menu-dot");
 
 /* Panels (page × section) */
 const panels = {
@@ -548,8 +550,11 @@ function renderParentChores() {
   });
   queueEmptyEl.hidden = waiting.length > 0;
 
-  tabParentBadge.textContent = waiting.length;
-  tabParentBadge.hidden = waiting.length === 0;
+  // Badge in the drawer + a dot on the hamburger so a parent knows
+  // there's something waiting without opening the menu.
+  drawerParentBadge.textContent = waiting.length;
+  drawerParentBadge.hidden = waiting.length === 0;
+  menuDot.hidden = waiting.length === 0;
 }
 
 /* ---------- Child · Shop (the kiosk) --------------------- */
@@ -1623,7 +1628,6 @@ function setPage(page) {
 
 function setSection(section) {
   currentSection = section;
-  closeMenu();
   saveState();
   showView();
 }
@@ -1641,7 +1645,7 @@ function closeMenu() {
 }
 
 // Show the one panel matching the current page + section, and keep
-// the tabs / menu / footer in step.
+// the drawer highlights and footer in step.
 function showView() {
   const key = `${currentPage}-${currentSection}`;
   Object.entries(panels).forEach(([k, el]) => (el.hidden = k !== key));
@@ -1649,14 +1653,12 @@ function showView() {
   // The child switcher only makes sense on the child pages.
   childSwitcherEl.hidden = currentPage !== "child";
 
-  tabs.forEach((tab) => {
-    const active = tab.dataset.page === currentPage;
-    tab.classList.toggle("is-active", active);
-    tab.setAttribute("aria-selected", active ? "true" : "false");
+  drawerItems.forEach((item) => {
+    const active =
+      (item.dataset.page && item.dataset.page === currentPage) ||
+      (item.dataset.section && item.dataset.section === currentSection);
+    item.classList.toggle("is-active", !!active);
   });
-  menuItems.forEach((item) =>
-    item.classList.toggle("is-active", item.dataset.section === currentSection)
-  );
 
   updateFooterNote();
 }
@@ -1721,19 +1723,16 @@ stepBackBtn.addEventListener("click", prevStep);
 doDoneBtn.addEventListener("click", finishDoing);
 sheetCloseBtn.addEventListener("click", closeOverlay);
 
-// Child / Parent tabs.
-tabs.forEach((tab) => tab.addEventListener("click", () => setPage(tab.dataset.page)));
-
-// Hamburger menu → sections (Chores / Shop).
+// The hamburger drawer holds all navigation.
 menuToggle.addEventListener("click", toggleMenu);
-menuItems.forEach((item) =>
-  item.addEventListener("click", () => setSection(item.dataset.section))
-);
-// Tapping elsewhere closes the menu.
-document.addEventListener("click", (e) => {
-  if (!menuEl.hidden && !menuEl.contains(e.target) && e.target !== menuToggle) {
-    closeMenu();
-  }
+menuClose.addEventListener("click", closeMenu);
+drawerBackdrop.addEventListener("click", closeMenu);
+drawerItems.forEach((item) => {
+  item.addEventListener("click", () => {
+    if (item.dataset.page) setPage(item.dataset.page);
+    else if (item.dataset.section) setSection(item.dataset.section);
+    closeMenu(); // close cleanly after choosing
+  });
 });
 
 // Parent adds a reward to the shop.
@@ -1750,9 +1749,11 @@ rewardForm.addEventListener("submit", (e) => {
   rewardNameEl.focus();
 });
 
-// Close the overlay with Escape, or by tapping the dark backdrop.
+// Close the overlay or the drawer with Escape, or by tapping the backdrop.
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && !overlayEl.hidden) closeOverlay();
+  if (e.key !== "Escape") return;
+  if (!overlayEl.hidden) closeOverlay();
+  else if (!menuEl.hidden) closeMenu();
 });
 overlayEl.addEventListener("click", (e) => {
   if (e.target === overlayEl) closeOverlay();

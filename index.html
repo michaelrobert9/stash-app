@@ -29,6 +29,7 @@
       <header class="topbar">
         <button id="menu-toggle" class="icon-button" type="button" aria-label="Menu" aria-expanded="false">
           <span class="hamburger" aria-hidden="true"></span>
+          <span id="menu-dot" class="menu-dot" hidden></span>
         </button>
 
         <!-- The horizontal lockup is the default logo. We show the
@@ -51,22 +52,37 @@
         </button>
       </header>
 
-      <!-- ---------- Hamburger menu: which section to show ---------- -->
-      <nav id="menu" class="menu" aria-label="Sections" hidden>
-        <button class="menu__item" type="button" data-section="chores">Chores</button>
-        <button class="menu__item" type="button" data-section="shop">Shop</button>
-      </nav>
+      <!-- ---------- Hamburger drawer: all navigation lives here ----------
+           Who's using it (Children / Parents) and which section
+           (Chores / Shop). Opens over a backdrop and closes cleanly. -->
+      <div id="menu" class="drawer" hidden>
+        <div id="drawer-backdrop" class="drawer__backdrop"></div>
+        <nav class="drawer__panel" aria-label="Menu">
+          <div class="drawer__head">
+            <span class="drawer__title">Menu</span>
+            <button id="menu-close" class="icon-button" type="button" aria-label="Close menu">
+              ×
+            </button>
+          </div>
 
-      <!-- ---------- Who's using it: Child / Parent ---------- -->
-      <nav class="tabs" role="tablist" aria-label="Choose who's using the app">
-        <button id="tab-child" class="tab is-active" role="tab" type="button" data-page="child" aria-selected="true">
-          Child
-        </button>
-        <button id="tab-parent" class="tab" role="tab" type="button" data-page="parent" aria-selected="false">
-          Parent
-          <span id="tab-parent-badge" class="tab__badge" hidden>0</span>
-        </button>
-      </nav>
+          <p class="drawer__label">Who</p>
+          <button class="drawer__item" type="button" data-page="child">
+            <span class="drawer__emoji" aria-hidden="true">🧒</span>Children
+          </button>
+          <button class="drawer__item" type="button" data-page="parent">
+            <span class="drawer__emoji" aria-hidden="true">🧑</span>Parents
+            <span id="drawer-parent-badge" class="tab__badge" hidden>0</span>
+          </button>
+
+          <p class="drawer__label">View</p>
+          <button class="drawer__item" type="button" data-section="chores">
+            <span class="drawer__emoji" aria-hidden="true">✅</span>Chores
+          </button>
+          <button class="drawer__item" type="button" data-section="shop">
+            <span class="drawer__emoji" aria-hidden="true">🛍️</span>Shop
+          </button>
+        </nav>
+      </div>
 
       <!-- Child switcher (shown on the child pages only) -->
       <div id="child-switcher" class="child-switcher" aria-label="Choose your child"></div>

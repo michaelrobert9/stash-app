@@ -190,39 +190,112 @@ body {
   top: 6px;
 }
 
-.menu {
+/* A small dot on the hamburger when chores are waiting for a parent */
+#menu-toggle {
+  position: relative;
+}
+.menu-dot {
   position: absolute;
-  top: 54px;
-  left: var(--screen-gutter);
-  z-index: 30;
-  min-width: 160px;
+  top: 7px;
+  right: 7px;
+  width: 9px;
+  height: 9px;
+  background: var(--pending);
+  border-radius: 50%;
+  border: 2px solid var(--paper);
+}
+.menu-dot[hidden] {
+  display: none;
+}
+
+/* The slide-in drawer */
+.drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+}
+.drawer[hidden] {
+  display: none;
+}
+.drawer__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(22, 21, 26, 0.45);
+}
+.drawer__panel {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: min(80%, 280px);
   background: var(--surface);
-  border: 1px solid var(--mist);
-  border-radius: var(--r-md);
   box-shadow: var(--shadow);
-  padding: 6px;
+  padding: 16px 14px;
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
+  animation: drawer-in 0.2s ease-out;
 }
-.menu__item {
+@keyframes drawer-in {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .drawer__panel {
+    animation: none;
+  }
+}
+
+.drawer__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.drawer__title {
+  font-size: 16px;
+  font-weight: 700;
+}
+.drawer__label {
+  margin: 14px 8px 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--slate);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.drawer__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   text-align: left;
+  width: 100%;
   border: none;
   background: transparent;
   color: var(--ink);
   font-family: inherit;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   padding: 12px 14px;
-  border-radius: var(--r-sm);
+  min-height: 48px;
+  border-radius: var(--r-md);
   cursor: pointer;
 }
-.menu__item:hover {
+.drawer__item:hover {
   background: var(--paper);
 }
-.menu__item.is-active {
+.drawer__item.is-active {
   background: var(--strike-tint);
   color: var(--strike);
+}
+.drawer__emoji {
+  font-size: 18px;
+  line-height: 1;
 }
 
 /* ---------- Child switcher ---------- */

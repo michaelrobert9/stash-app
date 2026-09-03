@@ -16,9 +16,10 @@ Built with plain **HTML, CSS and JavaScript** — no build tools needed.
 Open `index.html` in a web browser (double-click it, or drag it into a
 browser window). No installation required.
 
-The app has **two sides**, switched with the **Child / Parent** menu at the
-top, and a **hamburger menu** (top-left) to move between sections —
-**Chores** and the **Shop**.
+All navigation lives in one **hamburger menu** (top-left). It slides in over
+a dimmed backdrop and closes cleanly when you pick something or tap away. It
+holds both **who** is using the app (Children / Parents) and **which view**
+(Chores / Shop).
 
 - **Child** — the child's points, the tally, today's chores, and the shop to
   spend points in.
