@@ -28,7 +28,7 @@ Shop) — so each menu item is a complete destination.
 Everything the child does lives on the Child page; everything the parent
 manages lives on the Parent page.
 
-**Children & colours.** There are three children (Jasmine, Madison, Zachary), switched
+**Children & colours.** There are three children (Jasmine, Maddison, Zach), switched
 with the row of names under the menu. Each child picks their own colour, and
 their chores are shown in that colour — so on the parent's queue you can tell
 whose chore is whose at a glance.
@@ -50,6 +50,9 @@ In the demo, the loop runs across both pages:
      rubbish bin, then take the bag to the door.
    - **Tidy your room** — put clothes in the wash basket, toys in the toy
      box, and books on the shelf.
+   - **Sort the laundry** — whites in one basket, colours in the other.
+   - **Set the table** — drag the plate, cutlery and cup onto the table.
+   - **Pack your school bag** — put your books, lunch and water in the bag.
 2. Once you've played the game, a gentle **timer** starts and you go and do
    the real chore. Tap **I've done it** when you're finished — the task
    becomes _waiting on a parent_.

@@ -40,8 +40,8 @@ const CHILD_COLORS = [
 
 const DEFAULT_CHILDREN = [
   { id: "c1", name: "Jasmine", color: "#6A4DF4" },
-  { id: "c2", name: "Madison", color: "#2F80ED" },
-  { id: "c3", name: "Zachary", color: "#27AE60" },
+  { id: "c2", name: "Maddison", color: "#2F80ED" },
+  { id: "c3", name: "Zach", color: "#27AE60" },
 ];
 
 /* ---- The shop ----
@@ -134,6 +134,45 @@ const CHORE_TEMPLATES = [
       "Clear everything off the floor.",
       "Straighten your desk.",
       "Open the curtains.",
+    ],
+  },
+  {
+    id: 6,
+    name: "Sort the laundry",
+    points: 3,
+    minutes: 4,
+    game: "laundry",
+    steps: [
+      "Make two piles: whites and colours.",
+      "Put every white item in the whites pile.",
+      "Put everything else in the colours pile.",
+      "Check nothing coloured is in with the whites.",
+    ],
+  },
+  {
+    id: 7,
+    name: "Set the table",
+    points: 2,
+    minutes: 3,
+    game: "table",
+    steps: [
+      "Put a plate in the middle.",
+      "Fork on the left, knife on the right.",
+      "Spoon next to the knife.",
+      "Add a cup and a napkin.",
+    ],
+  },
+  {
+    id: 8,
+    name: "Pack your school bag",
+    points: 2,
+    minutes: 3,
+    game: "bag",
+    steps: [
+      "Put your books and notebook in.",
+      "Add your pencil case.",
+      "Pack your lunch and water bottle.",
+      "Zip it up.",
     ],
   },
 ];
@@ -1547,6 +1586,60 @@ const GAME_CONFIGS = {
       },
     ],
     finishText: "All tidy! Ready to do it for real?",
+  },
+
+  laundry: {
+    rounds: [
+      {
+        instruction: "Sort the washing. Whites on the left, colours on the right.",
+        zones: [
+          { id: "whites", emoji: "🤍", label: "Whites" },
+          { id: "colours", emoji: "🌈", label: "Colours" },
+        ],
+        items: [
+          { emoji: "🧦", label: "White socks", target: "whites" },
+          { emoji: "🎽", label: "White vest", target: "whites" },
+          { emoji: "👕", label: "Red shirt", target: "colours" },
+          { emoji: "👖", label: "Blue jeans", target: "colours" },
+          { emoji: "🧥", label: "Green coat", target: "colours" },
+        ],
+      },
+    ],
+    finishText: "All sorted! Ready to do it for real?",
+  },
+
+  table: {
+    rounds: [
+      {
+        instruction: "Set the table — drag everything onto the table.",
+        zones: [{ id: "table", emoji: "🍽️", label: "Table" }],
+        items: [
+          { emoji: "🍽️", label: "Plate", target: "table" },
+          { emoji: "🍴", label: "Fork", target: "table" },
+          { emoji: "🔪", label: "Knife", target: "table" },
+          { emoji: "🥄", label: "Spoon", target: "table" },
+          { emoji: "🥤", label: "Cup", target: "table" },
+        ],
+      },
+    ],
+    finishText: "Table set! Ready to do it for real?",
+  },
+
+  bag: {
+    rounds: [
+      {
+        instruction: "Pack your school bag — put everything in.",
+        zones: [{ id: "bag", emoji: "🎒", label: "School bag" }],
+        items: [
+          { emoji: "📕", label: "Book", target: "bag" },
+          { emoji: "📒", label: "Notebook", target: "bag" },
+          { emoji: "✏️", label: "Pencils", target: "bag" },
+          { emoji: "🍎", label: "Lunch", target: "bag" },
+          { emoji: "🥤", label: "Water", target: "bag" },
+        ],
+      },
+    ],
+    finishText: "All packed! Ready to do it for real?",
   },
 };
 
