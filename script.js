@@ -52,6 +52,7 @@ const DEFAULT_TASKS = [
     points: 1,
     minutes: 2,
     state: "todo",
+    game: "bed",
     steps: [
       "Pull the bottom sheet flat and tuck in the sides.",
       "Straighten the duvet up to the top.",
@@ -65,6 +66,7 @@ const DEFAULT_TASKS = [
     points: 2,
     minutes: 2,
     state: "todo",
+    game: "dog",
     steps: [
       "Fetch the dog's food bowl.",
       "Scoop in one cup of food.",
@@ -78,6 +80,7 @@ const DEFAULT_TASKS = [
     points: 2,
     minutes: 3,
     state: "todo",
+    game: "recycling",
     steps: [
       "Check it's the recycling bin, not the rubbish.",
       "Tie the bag closed.",
@@ -91,6 +94,7 @@ const DEFAULT_TASKS = [
     points: 4,
     minutes: 6,
     state: "todo",
+    game: "room",
     steps: [
       "Put dirty clothes in the wash basket.",
       "Pack your toys and books away.",
@@ -145,7 +149,7 @@ let shownPoints = 0; // how many points the tally is currently showing
 let activeTaskId = null;
 let stepIndex = 0;
 let timerId = null;
-let dishGame = null;
+let activeGame = null;
 
 /* ---------- Saving & loading ------------------------------ */
 
@@ -373,7 +377,7 @@ function openOverlay(id) {
   document.body.style.overflow = "hidden"; // stop the page behind scrolling
 
   const task = activeTask();
-  if (task.game === "dishes") {
+  if (task.game) {
     showGamePhase();
   } else {
     showLearnPhase();
@@ -389,7 +393,7 @@ function showPhase(which) {
 
 function closeOverlay() {
   stopTimer();
-  if (dishGame) dishGame.teardown();
+  if (activeGame) activeGame.teardown();
   overlayEl.hidden = true;
   document.body.style.overflow = "";
   activeTaskId = null;
@@ -402,8 +406,13 @@ function showGamePhase() {
   const task = activeTask();
   gameTitle.textContent = task.name;
   // When the game is finished, move on to the timer.
-  dishGame = new DishGame(task, () => startDoPhase());
-  dishGame.start();
+  const done = () => startDoPhase();
+  if (task.game === "dishes") {
+    activeGame = new DishGame(task, done);
+  } else {
+    activeGame = new ChoreGame(task, GAME_CONFIGS[task.game], done);
+  }
+  activeGame.start();
 }
 
 function activeTask() {
@@ -463,9 +472,9 @@ function prevStep() {
 
 function startDoPhase() {
   const task = activeTask();
-  if (dishGame) {
-    dishGame.teardown();
-    dishGame = null;
+  if (activeGame) {
+    activeGame.teardown();
+    activeGame = null;
   }
   showPhase("do");
   doTitle.textContent = task.name;
@@ -852,13 +861,325 @@ class DishGame {
   }
 }
 
+/* ============================================================
+   ChoreGame — a reusable "drag the right thing to the right
+   place" game, driven by a config (see GAME_CONFIGS below).
+
+   Each game is a list of rounds. A round has some drop `zones`
+   and some draggable `items`, and each item names the zone it
+   belongs in. Drop an item on the correct zone and it locks in;
+   drop it on the wrong zone and it politely bounces back.
+   ============================================================ */
+
+const ITEM_SIZE = 56;
+const ITEM_GAP = 12;
+
+class ChoreGame {
+  constructor(task, config, onComplete) {
+    this.task = task;
+    this.config = config;
+    this.onComplete = onComplete;
+    this.roundIndex = 0;
+    this.dead = false;
+    this.timers = [];
+    this.active = null; // the item currently being dragged
+  }
+
+  start() {
+    this.buildRound();
+  }
+
+  teardown() {
+    this.dead = true;
+    this.timers.forEach((t) => clearTimeout(t));
+    this.timers = [];
+    gameStage.innerHTML = "";
+  }
+
+  later(fn, ms) {
+    const id = setTimeout(() => {
+      if (!this.dead) fn();
+    }, ms);
+    this.timers.push(id);
+  }
+
+  buildRound() {
+    gameStage.innerHTML = "";
+    this.active = null;
+    const round = this.config.rounds[this.roundIndex];
+    const W = gameStage.clientWidth;
+    const H = gameStage.clientHeight;
+
+    gameInstruction.textContent = round.instruction;
+    gameProgress.textContent =
+      this.config.rounds.length > 1
+        ? `Step ${this.roundIndex + 1} of ${this.config.rounds.length}`
+        : "";
+
+    // --- Zones across the top ---
+    this.zones = {};
+    const zones = round.zones;
+    const zoneH = 118;
+    const zoneW = Math.min(124, (W - 16 - (zones.length - 1) * 12) / zones.length);
+    const zonesWidth = zones.length * zoneW + (zones.length - 1) * 12;
+    let zx = (W - zonesWidth) / 2;
+    zones.forEach((z) => {
+      const rect = { x: zx, y: 14, w: zoneW, h: zoneH };
+      const el = document.createElement("div");
+      el.className = "zone zone--drop";
+      el.style.left = rect.x + "px";
+      el.style.top = rect.y + "px";
+      el.style.width = rect.w + "px";
+      el.style.height = rect.h + "px";
+      el.innerHTML = `<span class="zone__emoji">${z.emoji}</span><span class="zone__label">${z.label}</span>`;
+      gameStage.append(el);
+      this.zones[z.id] = { rect, el };
+      zx += zoneW + 12;
+    });
+
+    // --- Items along the bottom (one or two balanced rows) ---
+    this.remaining = round.items.length;
+    const n = round.items.length;
+    const maxFit = Math.max(1, Math.floor((W - 8) / (ITEM_SIZE + ITEM_GAP)));
+    const perRow = n <= maxFit ? n : Math.min(maxFit, Math.ceil(n / 2));
+    const baseY = H - 14 - ITEM_SIZE;
+
+    round.items.forEach((def, i) => {
+      const row = Math.floor(i / perRow);
+      const col = i % perRow;
+      const inThisRow = Math.min(perRow, n - row * perRow);
+      const rowWidth = inThisRow * (ITEM_SIZE + ITEM_GAP) - ITEM_GAP;
+      const startX = (W - rowWidth) / 2;
+      const x = startX + col * (ITEM_SIZE + ITEM_GAP);
+      const y = baseY - row * (ITEM_SIZE + ITEM_GAP);
+
+      const el = document.createElement("div");
+      el.className = "game-item";
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      el.innerHTML = `<span class="game-item__emoji">${def.emoji}</span><span class="game-item__label">${def.label}</span>`;
+      gameStage.append(el);
+
+      const item = { el, target: def.target, homeX: x, homeY: y, x, y, placed: false };
+      el.addEventListener("pointerdown", (e) => this.startDrag(e, item));
+    });
+  }
+
+  posInStage(e) {
+    const r = gameStage.getBoundingClientRect();
+    return { x: e.clientX - r.left, y: e.clientY - r.top };
+  }
+
+  moveItem(item, x, y) {
+    const W = gameStage.clientWidth;
+    const H = gameStage.clientHeight;
+    item.x = Math.max(0, Math.min(x, W - ITEM_SIZE));
+    item.y = Math.max(0, Math.min(y, H - ITEM_SIZE));
+    item.el.style.left = item.x + "px";
+    item.el.style.top = item.y + "px";
+  }
+
+  startDrag(e, item) {
+    if (this.dead || this.active || item.placed) return;
+    this.active = item;
+    item.el.setPointerCapture(e.pointerId);
+    item.el.classList.add("is-dragging");
+    const p = this.posInStage(e);
+    this.grabDX = p.x - item.x;
+    this.grabDY = p.y - item.y;
+    // Show where this item belongs.
+    const zone = this.zones[item.target];
+    if (zone) zone.el.classList.add("is-target");
+  }
+
+  handleMove(e) {
+    if (this.dead || !this.active) return;
+    const p = this.posInStage(e);
+    this.moveItem(this.active, p.x - this.grabDX, p.y - this.grabDY);
+  }
+
+  handleUp(e) {
+    if (this.dead || !this.active) return;
+    const item = this.active;
+    this.active = null;
+    try {
+      item.el.releasePointerCapture(e.pointerId);
+    } catch (err) {
+      /* ignore */
+    }
+    item.el.classList.remove("is-dragging");
+    Object.values(this.zones).forEach((z) => z.el.classList.remove("is-target"));
+
+    const center = { x: item.x + ITEM_SIZE / 2, y: item.y + ITEM_SIZE / 2 };
+    const zoneId = this.zoneAt(center);
+
+    if (zoneId === item.target) {
+      this.acceptItem(item, this.zones[zoneId]);
+    } else {
+      // Wrong zone or empty space — bounce back, no penalty.
+      if (zoneId) this.shake(item);
+      this.returnHome(item);
+    }
+  }
+
+  zoneAt(point) {
+    for (const [id, z] of Object.entries(this.zones)) {
+      if (pointInRect(point, z.rect)) return id;
+    }
+    return null;
+  }
+
+  returnHome(item) {
+    item.el.style.transition = "left 0.2s ease, top 0.2s ease";
+    this.moveItem(item, item.homeX, item.homeY);
+    this.later(() => (item.el.style.transition = ""), 220);
+  }
+
+  shake(item) {
+    item.el.classList.add("shake");
+    this.later(() => item.el.classList.remove("shake"), 320);
+  }
+
+  acceptItem(item, zone) {
+    item.placed = true;
+    this.remaining--;
+    const cx = zone.rect.x + zone.rect.w / 2 - ITEM_SIZE / 2;
+    const cy = zone.rect.y + zone.rect.h / 2 - ITEM_SIZE / 2;
+    item.el.classList.add("is-placing");
+    this.moveItem(item, cx, cy);
+    item.el.style.transform = "scale(0.4)";
+    item.el.style.opacity = "0";
+    this.sparkleAt(zone.rect.x + zone.rect.w / 2, zone.rect.y + 12);
+    this.later(() => item.el.remove(), 250);
+
+    if (this.remaining === 0) {
+      this.later(() => this.nextRound(), 380);
+    }
+  }
+
+  sparkleAt(x, y) {
+    const s = document.createElement("div");
+    s.className = "sparkle";
+    s.textContent = "✦";
+    s.style.left = x - 10 + "px";
+    s.style.top = y + "px";
+    gameStage.append(s);
+    this.later(() => s.remove(), 600);
+  }
+
+  nextRound() {
+    this.roundIndex++;
+    if (this.roundIndex >= this.config.rounds.length) {
+      this.finish();
+    } else {
+      this.buildRound();
+    }
+  }
+
+  finish() {
+    gameInstruction.textContent = this.config.finishText;
+    gameProgress.textContent = "";
+    this.later(() => this.onComplete(), 700);
+  }
+}
+
+/* The games for the other four chores. Emoji keep them clear and
+   quick to change — swap them for custom art later if you like. */
+const GAME_CONFIGS = {
+  bed: {
+    rounds: [
+      {
+        instruction: "Drag the duvet up to the top of the bed.",
+        zones: [{ id: "bed", emoji: "🛏️", label: "Bed" }],
+        items: [{ emoji: "🟦", label: "Duvet", target: "bed" }],
+      },
+      {
+        instruction: "Now put both pillows on the bed.",
+        zones: [{ id: "bed", emoji: "🛏️", label: "Bed" }],
+        items: [
+          { emoji: "⬜", label: "Pillow", target: "bed" },
+          { emoji: "⬜", label: "Pillow", target: "bed" },
+        ],
+      },
+    ],
+    finishText: "Bed made! Ready to do it for real?",
+  },
+
+  dog: {
+    rounds: [
+      {
+        instruction: "Scoop the food into the food bowl.",
+        zones: [{ id: "food", emoji: "🍽️", label: "Food bowl" }],
+        items: [
+          { emoji: "🦴", label: "Food", target: "food" },
+          { emoji: "🦴", label: "Food", target: "food" },
+        ],
+      },
+      {
+        instruction: "Now fill the water bowl.",
+        zones: [{ id: "water", emoji: "💧", label: "Water bowl" }],
+        items: [{ emoji: "🫗", label: "Water", target: "water" }],
+      },
+    ],
+    finishText: "Dinner served! Ready to do it for real?",
+  },
+
+  recycling: {
+    rounds: [
+      {
+        instruction: "Sort each item. Recycling on the left, rubbish on the right.",
+        zones: [
+          { id: "recycle", emoji: "♻️", label: "Recycling" },
+          { id: "rubbish", emoji: "🗑️", label: "Rubbish" },
+        ],
+        items: [
+          { emoji: "🥤", label: "Bottle", target: "recycle" },
+          { emoji: "🥫", label: "Can", target: "recycle" },
+          { emoji: "📦", label: "Box", target: "recycle" },
+          { emoji: "📰", label: "Paper", target: "recycle" },
+          { emoji: "🍌", label: "Peel", target: "rubbish" },
+          { emoji: "🍏", label: "Core", target: "rubbish" },
+        ],
+      },
+      {
+        instruction: "Tie the bag and take it out to the door.",
+        zones: [{ id: "door", emoji: "🚪", label: "Door" }],
+        items: [{ emoji: "🛍️", label: "Bag", target: "door" }],
+      },
+    ],
+    finishText: "All sorted! Ready to do it for real?",
+  },
+
+  room: {
+    rounds: [
+      {
+        instruction: "Put everything where it belongs.",
+        zones: [
+          { id: "wash", emoji: "🧺", label: "Wash basket" },
+          { id: "toys", emoji: "🧸", label: "Toy box" },
+          { id: "books", emoji: "📚", label: "Shelf" },
+        ],
+        items: [
+          { emoji: "👕", label: "Shirt", target: "wash" },
+          { emoji: "🧦", label: "Socks", target: "wash" },
+          { emoji: "🚗", label: "Toy car", target: "toys" },
+          { emoji: "⚽", label: "Ball", target: "toys" },
+          { emoji: "📗", label: "Book", target: "books" },
+          { emoji: "📘", label: "Book", target: "books" },
+        ],
+      },
+    ],
+    finishText: "All tidy! Ready to do it for real?",
+  },
+};
+
 // Track pointer moves/releases at the document level too, so a fast
-// drag that leaves the dish still works.
+// drag that leaves the item still works.
 document.addEventListener("pointermove", (e) => {
-  if (dishGame && !dishGame.dead) dishGame.handleMove(e);
+  if (activeGame && !activeGame.dead) activeGame.handleMove(e);
 });
 document.addEventListener("pointerup", (e) => {
-  if (dishGame && !dishGame.dead) dishGame.handleUp(e);
+  if (activeGame && !activeGame.dead) activeGame.handleUp(e);
 });
 
 function pointInRect(p, r) {
