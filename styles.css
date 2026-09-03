@@ -578,8 +578,36 @@ body {
   min-width: 0;
 }
 .reward-form__cost {
-  width: 64px;
+  width: 60px;
   flex: 0 0 auto;
+}
+.reward-form__for {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0 8px;
+  font-size: 13px;
+  font-family: inherit;
+  border: 1.5px solid var(--mist);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+.reward-form {
+  flex-wrap: wrap;
+}
+/* Who a reward is for, in the parent's reward list */
+.reward__for {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  background: var(--mist);
+  color: var(--slate);
+  white-space: nowrap;
+}
+.child-total__age {
+  color: var(--slate);
+  font-weight: 400;
 }
 .reward-form input {
   padding: 0 12px;

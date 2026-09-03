@@ -146,6 +146,9 @@
             <input id="reward-emoji" class="reward-form__emoji" type="text" maxlength="2" value="🎁" aria-label="Emoji" />
             <input id="reward-name" class="reward-form__name" type="text" placeholder="Reward name" aria-label="Reward name" required />
             <input id="reward-cost" class="reward-form__cost" type="number" min="1" max="999" placeholder="pts" aria-label="Cost in points" required />
+            <select id="reward-for" class="reward-form__for" aria-label="Who it's for">
+              <option value="all">Everyone</option>
+            </select>
             <button class="btn btn--primary" type="submit">Add</button>
           </form>
           <ul id="reward-list" class="reward-list"></ul>

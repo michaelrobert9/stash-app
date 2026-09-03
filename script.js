@@ -22,7 +22,7 @@
    come back.
    ============================================================ */
 
-const STATE_KEY = "stash-state-v3";
+const STATE_KEY = "stash-state-v4";
 const THEME_KEY = "stash-theme";
 
 /* ---- Children ----
@@ -39,20 +39,46 @@ const CHILD_COLORS = [
 ];
 
 const DEFAULT_CHILDREN = [
-  { id: "c1", name: "Jasmine", color: "#6A4DF4" },
-  { id: "c2", name: "Maddison", color: "#2F80ED" },
-  { id: "c3", name: "Zac", color: "#27AE60" },
+  { id: "c1", name: "Jasmine", age: 14, color: "#6A4DF4" },
+  { id: "c2", name: "Maddison", age: 11, color: "#2F80ED" },
+  { id: "c3", name: "Zac", age: 9, color: "#27AE60" },
 ];
+
+// Which children each chore is assigned to (by chore-template id).
+// So every child has their own set of chores.
+const CHORE_ASSIGNMENTS = {
+  1: ["c2"], // Wash the dishes  -> Maddison only
+  2: ["c3"], // Make your bed    -> Zac
+  3: ["c3"], // Feed the dog     -> Zac
+  4: ["c1"], // Take out recycling -> Jasmine only
+  5: ["c1", "c2"], // Tidy your room -> Jasmine & Maddison (their own rooms)
+  6: ["c1"], // Sort the laundry -> Jasmine
+  7: ["c2"], // Set the table    -> Maddison
+  8: ["c3"], // Pack your school bag -> Zac
+};
 
 /* ---- The shop ----
    Rewards the parent stocks and prices. The child spends points here. */
+// `childIds` empty = available to every child; otherwise only those
+// children see it, so rewards can suit each child's age and interests.
 const DEFAULT_REWARDS = [
-  { id: "r1", name: "Packet of sweets", emoji: "🍬", cost: 10 },
-  { id: "r2", name: "Choose a movie", emoji: "🎬", cost: 15 },
-  { id: "r3", name: "Ice cream", emoji: "🍦", cost: 12 },
-  { id: "r4", name: "Extra screen time", emoji: "📱", cost: 25 },
-  { id: "r5", name: "Sleepover with a friend", emoji: "🛌", cost: 20 },
-  { id: "r6", name: "Pick dinner", emoji: "🍕", cost: 18 },
+  // For everyone
+  { id: "r1", name: "Packet of sweets", emoji: "🍬", cost: 10, childIds: [] },
+  { id: "r2", name: "Ice cream", emoji: "🍦", cost: 12, childIds: [] },
+  { id: "r3", name: "Choose a movie", emoji: "🎬", cost: 15, childIds: [] },
+  { id: "r4", name: "Extra screen time", emoji: "📱", cost: 25, childIds: [] },
+  { id: "r5", name: "Pick dinner", emoji: "🍕", cost: 18, childIds: [] },
+  { id: "r6", name: "Sleepover with a friend", emoji: "🛌", cost: 20, childIds: [] },
+  // Zac (9)
+  { id: "r7", name: "Cricket coaching session", emoji: "🏏", cost: 30, childIds: ["c3"] },
+  { id: "r8", name: "New Lego set", emoji: "🧱", cost: 35, childIds: ["c3"] },
+  // Maddison (11, loves hockey)
+  { id: "r9", name: "Hockey coaching session", emoji: "🏑", cost: 30, childIds: ["c2"] },
+  { id: "r10", name: "New book", emoji: "📚", cost: 15, childIds: ["c2"] },
+  // Jasmine (14)
+  { id: "r11", name: "Clothes shopping trip", emoji: "🛍️", cost: 45, childIds: ["c1"] },
+  { id: "r12", name: "Airtime & data", emoji: "📶", cost: 20, childIds: ["c1"] },
+  { id: "r13", name: "Movie night with friends", emoji: "🍿", cost: 40, childIds: ["c1"] },
 ];
 
 /* ---- Chore templates ----
@@ -180,12 +206,13 @@ const CHORE_TEMPLATES = [
 // Build the real task list: every child gets their own copy of every chore.
 function buildDefaultTasks() {
   const tasks = [];
-  DEFAULT_CHILDREN.forEach((child) => {
-    CHORE_TEMPLATES.forEach((tpl) => {
-      const awards = tpl.awards;
+  CHORE_TEMPLATES.forEach((tpl) => {
+    const childIds = CHORE_ASSIGNMENTS[tpl.id] || DEFAULT_CHILDREN.map((c) => c.id);
+    const awards = tpl.awards;
+    childIds.forEach((cid) => {
       tasks.push({
-        id: `${child.id}-${tpl.id}`,
-        childId: child.id,
+        id: `${cid}-${tpl.id}`,
+        childId: cid,
         name: tpl.name,
         awards, // the point options a parent can award
         points: Math.max(...awards), // the most it's worth (for badges/hints)
@@ -246,6 +273,7 @@ const rewardForm = document.getElementById("reward-form");
 const rewardEmojiEl = document.getElementById("reward-emoji");
 const rewardNameEl = document.getElementById("reward-name");
 const rewardCostEl = document.getElementById("reward-cost");
+const rewardForEl = document.getElementById("reward-for");
 const rewardListEl = document.getElementById("reward-list");
 const redemptionsEl = document.getElementById("redemptions");
 
@@ -361,6 +389,11 @@ function saveState() {
 
 function getChild(id) {
   return children.find((c) => c.id === id);
+}
+
+// Is a reward available to this child? (No childIds = everyone.)
+function rewardIsFor(reward, childId) {
+  return !reward.childIds || reward.childIds.length === 0 || reward.childIds.includes(childId);
 }
 
 function activeChild() {
@@ -595,7 +628,8 @@ function renderParentChores() {
     card.className = "child-total";
     card.style.setProperty("--accent", child.color);
     const dot = `<span class="child-total__dot" style="background:${child.color}"></span>`;
-    card.innerHTML = `${dot}<span class="child-total__name">${child.name}</span><span class="child-total__pts">${childPoints(
+    const age = child.age ? ` · ${child.age}` : "";
+    card.innerHTML = `${dot}<span class="child-total__name">${child.name}<span class="child-total__age">${age}</span></span><span class="child-total__pts">${childPoints(
       child.id
     )} pts</span>`;
     parentSummaryEl.append(card);
@@ -673,8 +707,11 @@ function renderChildShop() {
     points === 1 ? "point" : "points"
   } to spend.`;
 
+  // Only the rewards available to this child (theirs + everyone's).
+  const available = rewards.filter((r) => rewardIsFor(r, child.id));
+
   shopGridEl.innerHTML = "";
-  if (rewards.length === 0) {
+  if (available.length === 0) {
     const empty = document.createElement("p");
     empty.className = "empty-state";
     empty.textContent = "The shop is empty. A parent can add rewards.";
@@ -682,7 +719,7 @@ function renderChildShop() {
     return;
   }
 
-  rewards.forEach((reward) => {
+  available.forEach((reward) => {
     const affordable = points >= reward.cost;
     const card = document.createElement("div");
     card.className = "shop-card" + (affordable ? "" : " shop-card--short");
@@ -721,13 +758,29 @@ function renderChildShop() {
 /* ---------- Parent · Shop (stock & price) ---------------- */
 
 function renderParentShop() {
+  // Keep the "for" picker in step with the children.
+  populateRewardForSelect();
+
   rewardListEl.innerHTML = "";
   rewards.forEach((reward) => {
     const li = document.createElement("li");
     li.className = "reward";
+
+    // Who it's for: "All", or the child's name in their colour.
+    let forChip;
+    if (!reward.childIds || reward.childIds.length === 0) {
+      forChip = `<span class="reward__for">All</span>`;
+    } else {
+      const c = getChild(reward.childIds[0]);
+      forChip = c
+        ? `<span class="reward__for" style="background:${c.color};color:#fff">${c.name}</span>`
+        : "";
+    }
+
     li.innerHTML = `
       <span class="reward__emoji">${reward.emoji}</span>
       <span class="reward__name">${reward.name}</span>
+      ${forChip}
       <span class="badge">${reward.cost}<span class="badge__unit">pts</span></span>`;
     const del = iconButton("×", "pbtn pbtn--decline reward__del", "Remove reward", () =>
       deleteReward(reward.id)
@@ -754,6 +807,21 @@ function renderParentShop() {
         row.textContent = `${who} redeemed ${r.name} (${r.cost} pts)`;
         redemptionsEl.append(row);
       });
+  }
+}
+
+// Fill the "who's it for" dropdown: Everyone, then each child.
+function populateRewardForSelect() {
+  const current = rewardForEl.value;
+  rewardForEl.innerHTML = '<option value="all">Everyone</option>';
+  children.forEach((c) => {
+    const opt = document.createElement("option");
+    opt.value = c.id;
+    opt.textContent = c.name;
+    rewardForEl.append(opt);
+  });
+  if (current && [...rewardForEl.options].some((o) => o.value === current)) {
+    rewardForEl.value = current;
   }
 }
 
@@ -1719,12 +1787,13 @@ function redeem(childId, rewardId) {
   showToast(`Redeemed ${reward.name}!`);
 }
 
-function addReward(name, cost, emoji) {
+function addReward(name, cost, emoji, forValue) {
   rewards.push({
     id: "r" + Date.now(),
     name,
     cost,
     emoji: emoji || "🎁",
+    childIds: forValue && forValue !== "all" ? [forValue] : [],
   });
   saveState();
   update();
@@ -1902,7 +1971,7 @@ rewardForm.addEventListener("submit", (e) => {
   const cost = parseInt(rewardCostEl.value, 10);
   const emoji = rewardEmojiEl.value.trim();
   if (!name || !cost || cost < 1) return;
-  addReward(name, cost, emoji);
+  addReward(name, cost, emoji, rewardForEl.value);
   rewardNameEl.value = "";
   rewardCostEl.value = "";
   rewardEmojiEl.value = "🎁";

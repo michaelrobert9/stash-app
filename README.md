@@ -28,15 +28,19 @@ Shop) — so each menu item is a complete destination.
 Everything the child does lives on the Child page; everything the parent
 manages lives on the Parent page.
 
-**Children & colours.** There are three children (Jasmine, Maddison, Zac), switched
-with the row of names under the menu. Each child picks their own colour, and
-their chores are shown in that colour — so on the parent's queue you can tell
-whose chore is whose at a glance.
+**Children & colours.** There are three children — Jasmine (14), Maddison (11)
+and Zac (9) — switched with the row of names under the menu. Each has their
+**own set of chores** (e.g. Maddison does the dishes, Jasmine the recycling,
+Zac feeds the dog) and picks their own colour, so on the parent's queue you
+can tell whose chore is whose at a glance.
 
-**The shop.** The parent adds rewards and sets what each costs (e.g. sweets
-10 pts, a movie 15, a sleepover 20). The child browses a kiosk-style grid and
-redeems anything they can afford; rewards they can't afford yet stay visible
-with how many more points they need.
+**The shop.** The parent adds rewards, sets what each costs, and chooses **who
+each reward is for** — everyone, or one child. So the shop suits each child's
+age and interests: Zac has cricket coaching and Lego, Maddison hockey coaching
+and books, Jasmine teen things like a shopping trip and airtime. The child
+browses a kiosk-style grid of the rewards available to them and redeems
+anything they can afford; the rest stay visible with how many more points they
+need.
 
 In the demo, the loop runs across both pages:
 
