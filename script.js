@@ -41,7 +41,7 @@ const CHILD_COLORS = [
 const DEFAULT_CHILDREN = [
   { id: "c1", name: "Jasmine", color: "#6A4DF4" },
   { id: "c2", name: "Maddison", color: "#2F80ED" },
-  { id: "c3", name: "Zach", color: "#27AE60" },
+  { id: "c3", name: "Zac", color: "#27AE60" },
 ];
 
 /* ---- The shop ----
@@ -66,7 +66,7 @@ const CHORE_TEMPLATES = [
   {
     id: 1,
     name: "Wash the dishes",
-    points: 3,
+    awards: [5, 10, 15],
     minutes: 5,
     state: "todo",
     game: "dishes", // this chore has an interactive simulation
@@ -82,7 +82,7 @@ const CHORE_TEMPLATES = [
   {
     id: 2,
     name: "Make your bed",
-    points: 1,
+    awards: [2, 4, 6],
     minutes: 2,
     state: "todo",
     game: "bed",
@@ -96,7 +96,7 @@ const CHORE_TEMPLATES = [
   {
     id: 3,
     name: "Feed the dog",
-    points: 2,
+    awards: [3],
     minutes: 2,
     state: "todo",
     game: "dog",
@@ -110,7 +110,7 @@ const CHORE_TEMPLATES = [
   {
     id: 4,
     name: "Take out the recycling",
-    points: 2,
+    awards: [3],
     minutes: 3,
     state: "todo",
     game: "recycling",
@@ -124,7 +124,7 @@ const CHORE_TEMPLATES = [
   {
     id: 5,
     name: "Tidy your room",
-    points: 4,
+    awards: [10, 20, 30],
     minutes: 6,
     state: "todo",
     game: "room",
@@ -139,7 +139,7 @@ const CHORE_TEMPLATES = [
   {
     id: 6,
     name: "Sort the laundry",
-    points: 3,
+    awards: [5, 10, 15],
     minutes: 4,
     game: "laundry",
     steps: [
@@ -152,7 +152,7 @@ const CHORE_TEMPLATES = [
   {
     id: 7,
     name: "Set the table",
-    points: 2,
+    awards: [3, 6, 9],
     minutes: 3,
     game: "table",
     steps: [
@@ -165,7 +165,7 @@ const CHORE_TEMPLATES = [
   {
     id: 8,
     name: "Pack your school bag",
-    points: 2,
+    awards: [4],
     minutes: 3,
     game: "bag",
     steps: [
@@ -182,11 +182,13 @@ function buildDefaultTasks() {
   const tasks = [];
   DEFAULT_CHILDREN.forEach((child) => {
     CHORE_TEMPLATES.forEach((tpl) => {
+      const awards = tpl.awards;
       tasks.push({
         id: `${child.id}-${tpl.id}`,
         childId: child.id,
         name: tpl.name,
-        points: tpl.points,
+        awards, // the point options a parent can award
+        points: Math.max(...awards), // the most it's worth (for badges/hints)
         minutes: tpl.minutes,
         game: tpl.game,
         steps: tpl.steps,
@@ -514,7 +516,7 @@ function taskRow(task, actionEls, opts) {
   }
   const badge = document.createElement("span");
   badge.className = "badge";
-  badge.innerHTML = `${task.points}<span class="badge__unit">pts</span>`;
+  badge.innerHTML = `${pointsLabel(task)}<span class="badge__unit">pts</span>`;
   meta.append(badge);
 
   main.append(name, meta);
@@ -525,6 +527,14 @@ function taskRow(task, actionEls, opts) {
 
   li.append(main, actions);
   return li;
+}
+
+// A chore worth a single amount shows "3"; one with a range shows "5–15".
+function pointsLabel(task) {
+  const opts = task.awards || [task.points];
+  const lo = Math.min(...opts);
+  const hi = Math.max(...opts);
+  return lo === hi ? `${hi}` : `${lo}–${hi}`;
 }
 
 /* ---------- Child · Chores ------------------------------- */
@@ -630,18 +640,20 @@ function verifyRow(task) {
 
   const controls = document.createElement("div");
   controls.className = "verify-controls";
+  const options = task.awards || [task.points];
   const label = document.createElement("span");
   label.className = "verify-controls__label";
-  label.textContent = task.points > 1 ? "Award points" : "Award";
+  label.textContent = options.length > 1 ? "Award points" : "Award";
   controls.append(label);
 
-  // One chip per possible award, 1..full value. Full is highlighted.
-  for (let n = 1; n <= task.points; n++) {
+  // One chip per award option the chore allows. The best is highlighted.
+  const best = Math.max(...options);
+  options.forEach((n) => {
     const chip = button(String(n), "award-chip", () => verifyTask(task.id, n));
-    if (n === task.points) chip.classList.add("is-full");
+    if (n === best) chip.classList.add("is-full");
     chip.setAttribute("aria-label", `Award ${n} ${n === 1 ? "point" : "points"}`);
     controls.append(chip);
-  }
+  });
   controls.append(
     iconButton("↩", "pbtn pbtn--decline", "Send back", () =>
       setState(task.id, "declined")

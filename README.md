@@ -28,7 +28,7 @@ Shop) — so each menu item is a complete destination.
 Everything the child does lives on the Child page; everything the parent
 manages lives on the Parent page.
 
-**Children & colours.** There are three children (Jasmine, Maddison, Zach), switched
+**Children & colours.** There are three children (Jasmine, Maddison, Zac), switched
 with the row of names under the menu. Each child picks their own colour, and
 their chores are shown in that colour — so on the parent's queue you can tell
 whose chore is whose at a glance.
@@ -57,9 +57,11 @@ In the demo, the loop runs across both pages:
    the real chore. Tap **I've done it** when you're finished — the task
    becomes _waiting on a parent_.
 3. On the **Parent** page (the menu shows a badge when chores are waiting),
-   verify a finished chore by **choosing how many points to award** — up to
-   the chore's value, so a chore done badly can earn fewer. The tally counter
-   draws the new strokes. Or tap **↩** to send the task back.
+   verify a finished chore by **choosing how many points to award**. Effort
+   chores offer a range (e.g. dishes 5 / 10 / 15, tidy your room 10 / 20 /
+   30) so a job done badly earns less and a great job earns more; chores you
+   can't really do badly (feed the dog, recycling) are a fixed amount. The
+   tally counter draws the new strokes. Or tap **↩** to send the task back.
 
 The timer counts down from a suggested time but never fails you or takes
 points — when it reaches zero it just says "finish up and tap Done".
