@@ -28,7 +28,7 @@ holds both **who** is using the app (Children / Parents) and **which view**
 Everything the child does lives on the Child page; everything the parent
 manages lives on the Parent page.
 
-**Children & colours.** There are three children (Emma, Noah, Ava), switched
+**Children & colours.** There are three children (Jasmine, Madison, Zachary), switched
 with the row of names under the menu. Each child picks their own colour, and
 their chores are shown in that colour — so on the parent's queue you can tell
 whose chore is whose at a glance.

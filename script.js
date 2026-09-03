@@ -39,9 +39,9 @@ const CHILD_COLORS = [
 ];
 
 const DEFAULT_CHILDREN = [
-  { id: "c1", name: "Emma", color: "#6A4DF4" },
-  { id: "c2", name: "Noah", color: "#2F80ED" },
-  { id: "c3", name: "Ava", color: "#27AE60" },
+  { id: "c1", name: "Jasmine", color: "#6A4DF4" },
+  { id: "c2", name: "Madison", color: "#2F80ED" },
+  { id: "c3", name: "Zachary", color: "#27AE60" },
 ];
 
 /* ---- The shop ----
@@ -50,7 +50,7 @@ const DEFAULT_REWARDS = [
   { id: "r1", name: "Packet of sweets", emoji: "🍬", cost: 10 },
   { id: "r2", name: "Choose a movie", emoji: "🎬", cost: 15 },
   { id: "r3", name: "Ice cream", emoji: "🍦", cost: 12 },
-  { id: "r4", name: "Extra screen time", emoji: "📱", cost: 8 },
+  { id: "r4", name: "Extra screen time", emoji: "📱", cost: 25 },
   { id: "r5", name: "Sleepover with a friend", emoji: "🛌", cost: 20 },
   { id: "r6", name: "Pick dinner", emoji: "🍕", cost: 18 },
 ];
