@@ -16,9 +16,18 @@ Built with plain **HTML, CSS and JavaScript** — no build tools needed.
 Open `index.html` in a web browser (double-click it, or drag it into a
 browser window). No installation required.
 
-In the demo, the whole loop happens on one screen:
+The app has **two sides**, switched with the menu bar at the top:
 
-1. Tap **Do** on a task — as the child. Every chore has its own little game:
+- **Child** — the child's points, the tally, and today's chores to do.
+- **Parent** — where the parent verifies finished chores (and, going
+  forward, anything the parent adds: tasks, rewards, settings).
+
+Everything the child does lives on the Child page; everything the parent
+manages lives on the Parent page.
+
+In the demo, the loop runs across both pages:
+
+1. On the **Child** page, tap **Do** on a task. Every chore has its own game:
    - **Wash the dishes** — drag each plate into the sink, scrub it clean by
      going round in circles (a guide shows the pattern), then drag it into
      the dishwasher.
@@ -31,8 +40,9 @@ In the demo, the whole loop happens on one screen:
 2. Once you've played the game, a gentle **timer** starts and you go and do
    the real chore. Tap **I've done it** when you're finished — the task
    becomes _waiting on a parent_.
-3. Tap **✓** to verify — as the parent. The points are added and the tally
-   counter draws the new strokes. (Or tap **↩** to send the task back.)
+3. Switch to the **Parent** page (the menu bar shows a badge when chores are
+   waiting). Tap **✓** to verify — the points are added and the tally counter
+   draws the new strokes — or **↩** to send the task back.
 
 The timer counts down from a suggested time but never fails you or takes
 points — when it reaches zero it just says "finish up and tap Done".

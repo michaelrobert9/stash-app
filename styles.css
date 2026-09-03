@@ -160,6 +160,76 @@ body {
   box-shadow: inset -5px -5px 0 0 var(--surface);
 }
 
+/* ---------- Menu bar (Child / Parent tabs) ---------- */
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 6px 0 4px;
+  background: var(--mist);
+  border-radius: var(--r-pill);
+}
+.tab {
+  flex: 1;
+  position: relative;
+  border: none;
+  background: transparent;
+  color: var(--slate);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 10px 12px;
+  min-height: 44px;
+  border-radius: var(--r-pill);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.tab.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+}
+.tab__badge[hidden] {
+  display: none;
+}
+.tab__badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: var(--r-pill);
+  background: var(--pending);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: middle;
+}
+
+/* ---------- Pages ---------- */
+.page[hidden] {
+  display: none;
+}
+
+/* ---------- Parent summary ---------- */
+.parent-summary {
+  text-align: center;
+  padding: 24px 0 20px;
+}
+.parent-summary__label {
+  margin: 0;
+  color: var(--slate);
+  font-size: 12px;
+  font-weight: 500;
+}
+.parent-summary__balance {
+  margin: 4px 0 0;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
 /* ---------- Hero ---------- */
 .hero {
   text-align: center;

@@ -114,6 +114,18 @@ const emptyEl = document.getElementById("tasks-empty");
 const toastEl = document.getElementById("toast");
 const resetBtn = document.getElementById("reset");
 const themeToggle = document.getElementById("theme-toggle");
+const footerNote = document.getElementById("footer-note");
+
+/* Menu bar + pages */
+const tabs = Array.from(document.querySelectorAll(".tab"));
+const pageChild = document.getElementById("page-child");
+const pageParent = document.getElementById("page-parent");
+const tabParentBadge = document.getElementById("tab-parent-badge");
+
+/* Parent page elements */
+const parentBalanceEl = document.getElementById("parent-balance");
+const queueListEl = document.getElementById("queue-list");
+const queueEmptyEl = document.getElementById("queue-empty");
 
 /* Overlay elements */
 const overlayEl = document.getElementById("overlay");
@@ -287,41 +299,76 @@ function makeStrike(isNew) {
   return line;
 }
 
-/* ---------- The task list -------------------------------- */
+/* ---------- Task rows (shared by both pages) -------------- */
+
+// Build one task row: the name, its point badge, and whatever
+// action elements the caller passes in.
+function taskRow(task, actionEls, extraClass) {
+  const li = document.createElement("li");
+  li.className = "task" + (extraClass ? " " + extraClass : "");
+
+  const main = document.createElement("div");
+  main.className = "task__main";
+
+  const name = document.createElement("p");
+  name.className = "task__name";
+  name.textContent = task.name;
+
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.innerHTML = `${task.points}<span class="badge__unit">pts</span>`;
+
+  main.append(name, badge);
+
+  const actions = document.createElement("div");
+  actions.className = "task__actions";
+  actions.append(...actionEls);
+
+  li.append(main, actions);
+  return li;
+}
+
+/* ---------- Child page: today's tasks -------------------- */
 
 function renderTasks() {
   listEl.innerHTML = "";
-
   tasks.forEach((task) => {
-    const li = document.createElement("li");
-    li.className = "task" + (task.state === "verified" ? " task--verified" : "");
-
-    const main = document.createElement("div");
-    main.className = "task__main";
-
-    const name = document.createElement("p");
-    name.className = "task__name";
-    name.textContent = task.name;
-
-    const badge = document.createElement("span");
-    badge.className = "badge";
-    badge.innerHTML = `${task.points}<span class="badge__unit">pts</span>`;
-
-    main.append(name, badge);
-
-    const actions = document.createElement("div");
-    actions.className = "task__actions";
-    actions.append(...actionsFor(task));
-
-    li.append(main, actions);
-    listEl.append(li);
+    const verified = task.state === "verified";
+    listEl.append(taskRow(task, actionsFor(task), verified ? "task--verified" : ""));
   });
 
   const allDone = tasks.length > 0 && tasks.every((t) => t.state === "verified");
   emptyEl.hidden = !allDone;
 }
 
-// Which buttons/pills a task shows depends on its state.
+/* ---------- Parent page: the verification queue ---------- */
+
+function renderParent() {
+  parentBalanceEl.textContent = verifiedPoints();
+
+  // Only tasks the child has finished need a parent's decision.
+  const waiting = tasks.filter((t) => t.state === "pending");
+
+  queueListEl.innerHTML = "";
+  waiting.forEach((task) => {
+    const actions = [
+      iconButton("✓", "pbtn pbtn--verify", "Verify task", () => verifyTask(task.id)),
+      iconButton("↩", "pbtn pbtn--decline", "Send back", () =>
+        setState(task.id, "declined")
+      ),
+    ];
+    queueListEl.append(taskRow(task, actions));
+  });
+
+  queueEmptyEl.hidden = waiting.length > 0;
+
+  // Badge on the Parent tab shows how many are waiting.
+  tabParentBadge.textContent = waiting.length;
+  tabParentBadge.hidden = waiting.length === 0;
+}
+
+// Which buttons/pills a task shows on the CHILD page depends on its state.
+// Verifying is a parent action, so it lives on the Parent page instead.
 function actionsFor(task) {
   if (task.state === "todo" || task.state === "declined") {
     const parts = [];
@@ -332,13 +379,7 @@ function actionsFor(task) {
   }
 
   if (task.state === "pending") {
-    return [
-      statusPill("Waiting on a parent", "pending"),
-      iconButton("✓", "pbtn pbtn--verify", "Verify task", () => verifyTask(task.id)),
-      iconButton("↩", "pbtn pbtn--decline", "Send back", () =>
-        setState(task.id, "declined")
-      ),
-    ];
+    return [statusPill("Waiting on a parent", "pending")];
   }
 
   return [statusPill("Verified", "verified")];
@@ -1244,6 +1285,35 @@ function showToast(message) {
   }, 1800);
 }
 
+/* ---------- Menu bar (Child / Parent) -------------------- */
+
+const PAGE_KEY = "stash-page";
+let currentPage = "child";
+
+function showPage(page) {
+  currentPage = page;
+  pageChild.hidden = page !== "child";
+  pageParent.hidden = page !== "parent";
+  tabs.forEach((tab) => {
+    const active = tab.dataset.page === page;
+    tab.classList.toggle("is-active", active);
+    tab.setAttribute("aria-selected", active ? "true" : "false");
+  });
+  updateFooterNote();
+  try {
+    localStorage.setItem(PAGE_KEY, page);
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function updateFooterNote() {
+  footerNote.innerHTML =
+    currentPage === "child"
+      ? "Tap <strong>Do</strong> to learn a chore and do it. Once you've done it, a parent verifies it on the Parent page."
+      : "Tap <strong>✓</strong> to verify a finished chore (points are added then), or <strong>↩</strong> to send it back.";
+}
+
 /* ---------- Re-draw everything --------------------------- */
 
 function update() {
@@ -1252,6 +1322,7 @@ function update() {
   renderTally(points, shownPoints, pendingPoints());
   shownPoints = points;
   renderTasks();
+  renderParent();
   updateHint();
 }
 
@@ -1290,6 +1361,11 @@ stepBackBtn.addEventListener("click", prevStep);
 doDoneBtn.addEventListener("click", finishDoing);
 sheetCloseBtn.addEventListener("click", closeOverlay);
 
+// Menu-bar tabs switch between the child and parent pages.
+tabs.forEach((tab) => {
+  tab.addEventListener("click", () => showPage(tab.dataset.page));
+});
+
 // Close the overlay with Escape, or by tapping the dark backdrop.
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !overlayEl.hidden) closeOverlay();
@@ -1300,5 +1376,17 @@ overlayEl.addEventListener("click", (e) => {
 
 /* ---------- Start ---------------------------------------- */
 
+function applyStoredPage() {
+  let page = "child";
+  try {
+    const saved = localStorage.getItem(PAGE_KEY);
+    if (saved === "child" || saved === "parent") page = saved;
+  } catch (e) {
+    /* ignore */
+  }
+  showPage(page);
+}
+
 applyStoredTheme();
+applyStoredPage();
 update();

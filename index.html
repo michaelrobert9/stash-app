@@ -47,35 +47,87 @@
         </button>
       </header>
 
-      <!-- ---------- Hero: the balance is the loudest thing ---------- -->
-      <section class="hero" aria-labelledby="balance-label">
-        <p id="balance-label" class="hero__label">Your stash</p>
-        <p class="hero__balance">
-          <span id="balance">0</span>
-          <span class="hero__unit">points</span>
-        </p>
+      <!-- ---------- Menu bar: switch between the two sides ----------
+           The app has two pages: one for the child, one for the parent.
+           This demo puts them behind a simple two-tab menu. -->
+      <nav class="tabs" role="tablist" aria-label="Choose who's using the app">
+        <button
+          id="tab-child"
+          class="tab is-active"
+          role="tab"
+          type="button"
+          data-page="child"
+          aria-selected="true"
+        >
+          Child
+        </button>
+        <button
+          id="tab-parent"
+          class="tab"
+          role="tab"
+          type="button"
+          data-page="parent"
+          aria-selected="false"
+        >
+          Parent
+          <span id="tab-parent-badge" class="tab__badge" hidden>0</span>
+        </button>
+      </nav>
 
-        <!-- The tally counter. JavaScript fills this with bundles of five. -->
-        <div id="tally" class="tally" role="img" aria-label="0 points"></div>
+      <!-- ================= CHILD PAGE ================= -->
+      <main id="page-child" class="page" role="tabpanel" aria-labelledby="tab-child">
+        <!-- Hero: the balance is the loudest thing -->
+        <section class="hero" aria-labelledby="balance-label">
+          <p id="balance-label" class="hero__label">Your stash</p>
+          <p class="hero__balance">
+            <span id="balance">0</span>
+            <span class="hero__unit">points</span>
+          </p>
 
-        <p id="hero-hint" class="hero__hint"></p>
-      </section>
+          <!-- The tally counter. JavaScript fills this with bundles of five. -->
+          <div id="tally" class="tally" role="img" aria-label="0 points"></div>
 
-      <!-- ---------- Today's tasks ---------- -->
-      <section class="tasks" aria-labelledby="tasks-heading">
-        <h2 id="tasks-heading" class="section-heading">Today</h2>
-        <ul id="task-list" class="task-list"></ul>
-        <p id="tasks-empty" class="empty-state" hidden>
-          Nothing left for today. Nice work.
-        </p>
-      </section>
+          <p id="hero-hint" class="hero__hint"></p>
+        </section>
 
-      <!-- ---------- Footer: demo helper ---------- -->
+        <!-- Today's tasks -->
+        <section class="tasks" aria-labelledby="tasks-heading">
+          <h2 id="tasks-heading" class="section-heading">Today</h2>
+          <ul id="task-list" class="task-list"></ul>
+          <p id="tasks-empty" class="empty-state" hidden>
+            Nothing left for today. Nice work.
+          </p>
+        </section>
+      </main>
+
+      <!-- ================= PARENT PAGE ================= -->
+      <main
+        id="page-parent"
+        class="page"
+        role="tabpanel"
+        aria-labelledby="tab-parent"
+        hidden
+      >
+        <!-- A calm summary of where the child's points stand -->
+        <section class="parent-summary">
+          <p class="parent-summary__label">Your child's stash</p>
+          <p class="parent-summary__balance">
+            <span id="parent-balance">0</span>
+            <span class="hero__unit">points saved</span>
+          </p>
+        </section>
+
+        <!-- The verification queue: what needs a parent's decision -->
+        <section class="tasks" aria-labelledby="queue-heading">
+          <h2 id="queue-heading" class="section-heading">Waiting on you</h2>
+          <ul id="queue-list" class="task-list"></ul>
+          <p id="queue-empty" class="empty-state">Nothing to verify right now.</p>
+        </section>
+      </main>
+
+      <!-- ---------- Footer ---------- -->
       <footer class="footer">
-        <p class="footer__note">
-          Tap <strong>Do</strong> to learn a chore and do it, then a parent taps
-          <strong>✓</strong> to verify. Points are only added once a parent verifies.
-        </p>
+        <p id="footer-note" class="footer__note"></p>
         <button id="reset" class="text-button" type="button">Reset demo</button>
       </footer>
     </div>
