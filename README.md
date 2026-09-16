@@ -1,13 +1,10 @@
 # Stash
 
-A chore-and-rewards app for families. Children earn **points** for doing
-household tasks, a **parent verifies** the work, and points build up until
-the child spends them in a shop the parent stocks. The signature of the
-brand is the **tally mark** — four uprights and a strike — which doubles as a
-live counter that draws itself as points are earned.
-
-This repo currently holds the **child home screen** built as a working demo,
-plus the full Stash brand kit.
+A chore-and-rewards app for families, built on a simple idea: **what gets
+rewarded gets repeated**. Children do tasks and earn **stash cash**, a parent
+verifies the work, and the stash cash builds up until the child spends it in a
+shop the parent stocks — on real rewards or treats that don't cost money (a
+movie night, extra screen time, and so on).
 
 Built with plain **HTML, CSS and JavaScript** — no build tools needed.
 
@@ -16,14 +13,10 @@ Built with plain **HTML, CSS and JavaScript** — no build tools needed.
 Open `index.html` in a web browser (double-click it, or drag it into a
 browser window). No installation required.
 
-All navigation lives in one **hamburger menu** (top-left). It slides in over
-a dimmed backdrop and closes cleanly when you pick something or tap away. It's
+All navigation lives in one **hamburger menu** (top-left). It slides in over a
+dimmed backdrop and closes cleanly when you pick something or tap away. It's
 grouped by person — **Children** (Chores / Shop) and **Parents** (Chores /
 Shop) — so each menu item is a complete destination.
-
-- **Child** — the child's points, the tally, today's chores, and the shop to
-  spend points in.
-- **Parent** — verifying finished chores, and stocking & pricing the shop.
 
 Everything the child does lives on the Child page; everything the parent
 manages lives on the Parent page.
@@ -34,44 +27,27 @@ and Zac (9) — switched with the row of names under the menu. Each has their
 Zac feeds the dog) and picks their own colour, so on the parent's queue you
 can tell whose chore is whose at a glance.
 
-**The shop.** The parent adds rewards, sets what each costs, and chooses **who
-each reward is for** — everyone, or one child. So the shop suits each child's
-age and interests: Zac has cricket coaching and Lego, Maddison hockey coaching
-and books, Jasmine teen things like a shopping trip and airtime. The child
-browses a kiosk-style grid of the rewards available to them and redeems
-anything they can afford; the rest stay visible with how many more points they
-need.
+**The shop.** The parent adds rewards, sets what each costs in stash cash, and
+chooses **who each reward is for** — everyone, or one child. So the shop suits
+each child's age and interests: Zac has cricket coaching and Lego, Maddison
+hockey coaching and books, Jasmine teen things like a shopping trip and
+airtime. The child browses a kiosk-style grid of the rewards available to them
+and redeems anything they can afford; the rest stay visible with how much more
+stash cash they need.
 
-In the demo, the loop runs across both pages:
+The loop runs across both pages:
 
-1. On the **Child** page, tap **Do** on a task. Every chore has its own game:
-   - **Wash the dishes** — drag each plate into the sink, scrub it clean by
-     going round in circles (a guide shows the pattern), then drag it into
-     the dishwasher.
-   - **Make your bed** — drag the duvet and pillows onto the bed.
-   - **Feed the dog** — scoop food into the food bowl, fill the water bowl.
-   - **Take out the recycling** — sort each item into the recycling or
-     rubbish bin, then take the bag to the door.
-   - **Tidy your room** — put clothes in the wash basket, toys in the toy
-     box, and books on the shelf.
-   - **Sort the laundry** — whites in one basket, colours in the other.
-   - **Set the table** — drag the plate, cutlery and cup onto the table.
-   - **Pack your school bag** — put your books, lunch and water in the bag.
-2. Once you've played the game, a gentle **timer** starts and you go and do
-   the real chore. Tap **I've done it** when you're finished — the task
-   becomes _waiting on a parent_.
-3. On the **Parent** page (the menu shows a badge when chores are waiting),
-   verify a finished chore by **choosing how many points to award**. Effort
-   chores offer a range (e.g. dishes 5 / 10 / 15, tidy your room 10 / 20 /
-   30) so a job done badly earns less and a great job earns more; chores you
-   can't really do badly (feed the dog, recycling) are a fixed amount. The
-   tally counter draws the new strokes. Or tap **↩** to send the task back.
+1. On the **Child** page, tap **I've done it** on a finished chore — it becomes
+   _waiting on a parent_.
+2. On the **Parent** page (the menu shows a badge when chores are waiting),
+   verify it by **choosing how much stash cash to award**. Effort chores offer
+   a range (e.g. dishes 5 / 10 / 15, tidy your room 10 / 20 / 30) so a job done
+   badly earns less and a great job earns more; chores you can't really do
+   badly (feed the dog, recycling) are a fixed amount. Or tap **↩** to send the
+   task back.
 
-The timer counts down from a suggested time but never fails you or takes
-points — when it reaches zero it just says "finish up and tap Done".
-
-Your progress is saved in the browser, and there's a **Reset demo** button at
-the bottom. There's also a light/dark theme toggle in the top corner.
+Progress is saved in the browser, with a **Reset demo** button at the bottom
+and a light/dark theme toggle in the top corner.
 
 ## The files
 
@@ -119,9 +95,8 @@ First-time setup (once):
 
 ## Ideas to build next
 
-The design guidelines describe the rest of the product, if you want to keep
-going:
-
-- A **parent home** screen — a verification queue instead of a dashboard.
-- A **shop** where rewards are photos priced in points, in a two-column grid.
-- **Spending** points — redeeming subtracts bundles from the tally.
+- **Accounts & login** — a parent signs in with email + password; each child
+  gets a username + password (created by the parent) and sees only their own
+  chores and shop.
+- **Cash-out** rewards — convert stash cash to real money for real purchases,
+  alongside the no-cost treats.
