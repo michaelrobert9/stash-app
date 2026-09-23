@@ -18,7 +18,6 @@
    come back.
    ============================================================ */
 
-const STATE_KEY = "stash-state-v4";
 const THEME_KEY = "stash-theme";
 
 /* ---- Children ----
@@ -224,7 +223,6 @@ function buildDefaultTasks() {
 
 /* Shared */
 const toastEl = document.getElementById("toast");
-const resetBtn = document.getElementById("reset");
 const themeToggle = document.getElementById("theme-toggle");
 const footerNote = document.getElementById("footer-note");
 
@@ -278,79 +276,254 @@ const prefersReducedMotion = window.matchMedia(
   "(prefers-reduced-motion: reduce)"
 ).matches;
 
-/* ---------- App state ------------------------------------ */
+/* ---------- App state ------------------------------------
+   The family's data now lives in Firestore. These arrays are kept
+   in sync by live listeners (see initApp): whenever the cloud data
+   changes — on this device or another — the arrays update and the
+   screen re-renders. */
 
-let children = DEFAULT_CHILDREN.map((c) => ({ ...c }));
-let tasks = buildDefaultTasks();
-let rewards = DEFAULT_REWARDS.map((r) => ({ ...r }));
-let redemptions = []; // { childId, name, cost } — what's been redeemed
-let activeChildId = children[0].id; // which child the Child page is showing
+let children = [];
+let tasks = []; // chores
+let rewards = [];
+let redemptions = [];
+let activeChildId = null; // which child the Child page is showing (a UI choice)
 let shownPoints = 0; // how much stash cash the tally is currently showing
 
-/* ---------- Saving & loading ------------------------------
-   Everything lives in one saved object. Task/chore/reward
-   definitions come from the code; only the changeable bits
-   (states, colours, redemptions, the current view) are saved. */
+let householdId = null; // the current family's id (also the family code)
+let unsubscribers = []; // live-listener teardown functions
 
-function loadState() {
+const UI_KEY = "stash-ui"; // small per-device UI preferences
+
+/* ---------- Per-device UI preferences (not family data) ---------- */
+
+function loadUiPrefs() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STATE_KEY));
-    if (!saved) return;
-
-    if (Array.isArray(saved.children)) {
-      children = DEFAULT_CHILDREN.map((c) => {
-        const m = saved.children.find((s) => s.id === c.id);
-        return { ...c, color: m && m.color ? m.color : c.color };
-      });
-    }
-    if (saved.taskStates) {
-      tasks.forEach((t) => {
-        if (saved.taskStates[t.id]) t.state = saved.taskStates[t.id];
-      });
-    }
-    if (saved.awards) {
-      tasks.forEach((t) => {
-        if (typeof saved.awards[t.id] === "number") t.award = saved.awards[t.id];
-      });
-    }
-    if (Array.isArray(saved.rewards)) rewards = saved.rewards;
-    if (Array.isArray(saved.redemptions)) redemptions = saved.redemptions;
-    if (saved.activeChildId && children.some((c) => c.id === saved.activeChildId)) {
-      activeChildId = saved.activeChildId;
-    }
-    if (saved.page === "child" || saved.page === "parent") currentPage = saved.page;
-    if (saved.section === "chores" || saved.section === "shop") {
-      currentSection = saved.section;
-    }
+    const p = JSON.parse(localStorage.getItem(UI_KEY)) || {};
+    if (p.page === "child" || p.page === "parent") currentPage = p.page;
+    if (p.section === "chores" || p.section === "shop") currentSection = p.section;
+    if (p.activeChildId) activeChildId = p.activeChildId;
   } catch (e) {
-    /* start fresh on any problem */
+    /* ignore */
+  }
+}
+function saveUiPrefs() {
+  try {
+    localStorage.setItem(
+      UI_KEY,
+      JSON.stringify({ page: currentPage, section: currentSection, activeChildId })
+    );
+  } catch (e) {
+    /* ignore */
   }
 }
 
-function saveState() {
-  try {
-    const taskStates = {};
-    const awards = {};
-    tasks.forEach((t) => {
-      if (t.state !== "todo") taskStates[t.id] = t.state;
-      if (typeof t.award === "number") awards[t.id] = t.award;
-    });
-    localStorage.setItem(
-      STATE_KEY,
-      JSON.stringify({
-        children: children.map((c) => ({ id: c.id, color: c.color })),
-        taskStates,
-        awards,
-        rewards,
-        redemptions,
-        activeChildId,
-        page: currentPage,
-        section: currentSection,
-      })
-    );
-  } catch (e) {
-    /* storage might be unavailable — the demo still works */
+/* ---------- Firestore helpers ---------- */
+
+// A subcollection under the current household.
+function hcol(name) {
+  return fbDb.collection("households").doc(householdId).collection(name);
+}
+const serverTime = () => firebase.firestore.FieldValue.serverTimestamp();
+
+/* ---------- Login / family gate ---------------------------
+   Three screens: login → family setup → the app. */
+
+const authScreenEl = document.getElementById("auth-screen");
+const familyScreenEl = document.getElementById("family-screen");
+const appScreenEl = document.querySelector(".screen");
+
+function setGate(state) {
+  authScreenEl.style.display = state === "login" ? "flex" : "none";
+  familyScreenEl.style.display = state === "family" ? "flex" : "none";
+  appScreenEl.style.display = state === "app" ? "flex" : "none";
+}
+
+// Called by auth.js whenever the signed-in user changes.
+async function onAuthChange(user) {
+  if (!user) {
+    detachListeners();
+    householdId = null;
+    setGate("login");
+    return;
   }
+  const emailEl = document.getElementById("drawer-email");
+  if (emailEl) emailEl.textContent = user.email || "";
+
+  // Find the family this parent belongs to.
+  let hid = null;
+  try {
+    const doc = await fbDb.collection("users").doc(user.uid).get();
+    hid = doc.exists ? doc.data().householdId || null : null;
+  } catch (e) {
+    /* ignore — treat as no family */
+  }
+
+  if (hid) {
+    householdId = hid;
+    setGate("app");
+    initApp();
+  } else {
+    setGate("family");
+  }
+}
+
+/* ---------- Family setup (create or join) ---------- */
+
+// A short, readable family code (no easily-confused characters).
+function generateCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let code = "";
+  for (let i = 0; i < 6; i++) {
+    code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return code;
+}
+
+async function createFamily() {
+  const user = fbAuth.currentUser;
+  if (!user) return;
+
+  // Create the household under a fresh code (retry if the code is taken).
+  let code = null;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const candidate = generateCode();
+    try {
+      await fbDb.collection("households").doc(candidate).set({
+        name: "Our family",
+        code: candidate,
+        ownerUid: user.uid,
+        createdAt: serverTime(),
+      });
+      code = candidate;
+      break;
+    } catch (e) {
+      /* code likely taken — try another */
+    }
+  }
+  if (!code) throw new Error("Could not create a family, please try again.");
+
+  // Become a member, then seed the starter data.
+  await fbDb
+    .collection("households")
+    .doc(code)
+    .collection("members")
+    .doc(user.uid)
+    .set({
+      role: "parent",
+      name: user.displayName || "",
+      email: user.email || "",
+      joinedAt: serverTime(),
+    });
+
+  householdId = code;
+  await seedFamily();
+  await fbDb.collection("users").doc(user.uid).set({ householdId: code }, { merge: true });
+
+  setGate("app");
+  initApp();
+  showToast(`Family created! Your code is ${code} — share it with your partner.`);
+}
+
+// Fill a brand-new family with the starter children, chores and rewards.
+async function seedFamily() {
+  const batch = fbDb.batch();
+  DEFAULT_CHILDREN.forEach((c) => {
+    batch.set(hcol("children").doc(c.id), { name: c.name, age: c.age, color: c.color });
+  });
+  CHORE_TEMPLATES.forEach((tpl) => {
+    const childIds = CHORE_ASSIGNMENTS[tpl.id] || DEFAULT_CHILDREN.map((c) => c.id);
+    childIds.forEach((cid) => {
+      batch.set(hcol("chores").doc(`${cid}-${tpl.id}`), {
+        childId: cid,
+        name: tpl.name,
+        awards: tpl.awards,
+        points: Math.max(...tpl.awards),
+        state: "todo",
+      });
+    });
+  });
+  DEFAULT_REWARDS.forEach((r) => {
+    batch.set(hcol("rewards").doc(r.id), {
+      name: r.name,
+      emoji: r.emoji,
+      cost: r.cost,
+      childIds: r.childIds || [],
+    });
+  });
+  await batch.commit();
+}
+
+async function joinFamily(rawCode) {
+  const user = fbAuth.currentUser;
+  if (!user) return;
+  const code = (rawCode || "").trim().toUpperCase();
+  if (!code) throw new Error("Enter the family code your partner shared.");
+
+  // Creating our member doc only succeeds if the family (household) exists.
+  await fbDb
+    .collection("households")
+    .doc(code)
+    .collection("members")
+    .doc(user.uid)
+    .set({
+      role: "parent",
+      name: user.displayName || "",
+      email: user.email || "",
+      joinedAt: serverTime(),
+    });
+
+  householdId = code;
+  await fbDb.collection("users").doc(user.uid).set({ householdId: code }, { merge: true });
+  setGate("app");
+  initApp();
+}
+
+/* ---------- Live data: keep the arrays in sync with Firestore ---------- */
+
+function detachListeners() {
+  unsubscribers.forEach((u) => u());
+  unsubscribers = [];
+}
+
+function initApp() {
+  detachListeners();
+
+  // Show the family code in the menu so it can be shared with a partner.
+  const famEl = document.getElementById("drawer-family");
+  if (famEl && householdId) {
+    famEl.innerHTML = `Family code: <strong>${householdId}</strong>`;
+    famEl.hidden = false;
+  }
+
+  unsubscribers.push(
+    hcol("children").onSnapshot((snap) => {
+      children = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      children.sort((a, b) => (b.age || 0) - (a.age || 0));
+      if (!children.some((c) => c.id === activeChildId)) {
+        activeChildId = children.length ? children[0].id : null;
+      }
+      renderChildSwitcher();
+      update();
+    })
+  );
+  unsubscribers.push(
+    hcol("chores").onSnapshot((snap) => {
+      tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      update();
+    })
+  );
+  unsubscribers.push(
+    hcol("rewards").onSnapshot((snap) => {
+      rewards = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      update();
+    })
+  );
+  unsubscribers.push(
+    hcol("redemptions").onSnapshot((snap) => {
+      redemptions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      update();
+    })
+  );
 }
 
 /* ---------- Children & points ---------------------------- */
@@ -365,7 +538,7 @@ function rewardIsFor(reward, childId) {
 }
 
 function activeChild() {
-  return getChild(activeChildId) || children[0];
+  return getChild(activeChildId) || children[0] || null;
 }
 
 function tasksFor(childId) {
@@ -542,6 +715,13 @@ function pointsLabel(task) {
 
 function renderChildChores() {
   const child = activeChild();
+  if (!child) {
+    heroLabelEl.textContent = "Your stash";
+    balanceEl.textContent = "0";
+    listEl.innerHTML = "";
+    colorSwatchesEl.innerHTML = "";
+    return;
+  }
   const points = childPoints(child.id);
 
   heroLabelEl.textContent = `${child.name}'s stash`;
@@ -670,6 +850,11 @@ function verifyRow(task) {
 
 function renderChildShop() {
   const child = activeChild();
+  if (!child) {
+    shopNoteEl.textContent = "";
+    shopGridEl.innerHTML = "";
+    return;
+  }
   const points = childPoints(child.id);
   shopNoteEl.textContent = `${child.name}, you have ${points} stash cash to spend.`;
 
@@ -838,85 +1023,65 @@ function markDone(id) {
   setState(id, "pending");
 }
 
-/* ---------- Actions -------------------------------------- */
+/* ---------- Actions (write to Firestore; live listeners re-render) --- */
+
+const DELETE = () => firebase.firestore.FieldValue.delete();
 
 function setState(id, state) {
-  const task = tasks.find((t) => t.id === id);
-  if (!task) return;
-  task.state = state;
-  if (state !== "verified") delete task.award; // reset any chosen award
-  saveState();
-  update();
+  const patch = { state };
+  if (state !== "verified") patch.award = DELETE(); // clear any chosen award
+  hcol("chores").doc(id).update(patch).catch(warnWrite);
 }
 
-// The parent verifies a chore and chooses how many points to award
-// (up to the chore's value) — a badly-done chore can earn less.
+// The parent verifies a chore and chooses how much stash cash to award
+// (a badly-done chore can earn less than the full value).
 function verifyTask(id, points) {
   const task = tasks.find((t) => t.id === id);
-  if (!task) return;
-  const award = typeof points === "number" ? points : task.points;
-  task.award = award;
-  task.state = "verified";
-  saveState();
-  update();
+  const award = typeof points === "number" ? points : task ? task.points : 0;
+  hcol("chores").doc(id).update({ state: "verified", award }).catch(warnWrite);
   showToast(`+${award} stash cash`);
 }
 
 function setActiveChild(id) {
   activeChildId = id;
   shownPoints = childPoints(id); // no draw-on animation just for switching
-  saveState();
+  saveUiPrefs();
   renderChildSwitcher();
   update();
 }
 
 function setChildColor(id, color) {
-  const child = getChild(id);
-  if (!child) return;
-  child.color = color;
-  saveState();
-  renderChildSwitcher();
-  update();
+  hcol("children").doc(id).update({ color }).catch(warnWrite);
 }
 
 function redeem(childId, rewardId) {
   const reward = rewards.find((r) => r.id === rewardId);
   if (!reward) return;
   if (childPoints(childId) < reward.cost) return; // can't afford
-  redemptions.push({ childId, name: reward.name, cost: reward.cost });
-  saveState();
-  update();
+  hcol("redemptions")
+    .add({ childId, name: reward.name, cost: reward.cost, at: serverTime() })
+    .catch(warnWrite);
   showToast(`Redeemed ${reward.name}!`);
 }
 
 function addReward(name, cost, emoji, forValue) {
-  rewards.push({
-    id: "r" + Date.now(),
-    name,
-    cost,
-    emoji: emoji || "🎁",
-    childIds: forValue && forValue !== "all" ? [forValue] : [],
-  });
-  saveState();
-  update();
+  hcol("rewards")
+    .add({
+      name,
+      cost,
+      emoji: emoji || "🎁",
+      childIds: forValue && forValue !== "all" ? [forValue] : [],
+    })
+    .catch(warnWrite);
 }
 
 function deleteReward(id) {
-  rewards = rewards.filter((r) => r.id !== id);
-  saveState();
-  update();
+  hcol("rewards").doc(id).delete().catch(warnWrite);
 }
 
-function resetDemo() {
-  children = DEFAULT_CHILDREN.map((c) => ({ ...c }));
-  tasks = buildDefaultTasks();
-  rewards = DEFAULT_REWARDS.map((r) => ({ ...r }));
-  redemptions = [];
-  activeChildId = children[0].id;
-  shownPoints = 0;
-  saveState();
-  renderChildSwitcher();
-  update();
+function warnWrite(err) {
+  console.warn("Save failed:", err);
+  showToast("Couldn't save — check your connection.");
 }
 
 /* ---------- The hint under the balance ------------------- */
@@ -961,7 +1126,7 @@ let currentSection = "chores"; // chores | shop
 function navigate(page, section) {
   currentPage = page;
   currentSection = section;
-  saveState();
+  saveUiPrefs();
   showView();
 }
 
@@ -1049,8 +1214,6 @@ themeToggle.addEventListener("click", () => {
   }
 });
 
-resetBtn.addEventListener("click", resetDemo);
-
 // The hamburger drawer holds all navigation.
 menuToggle.addEventListener("click", toggleMenu);
 menuClose.addEventListener("click", closeMenu);
@@ -1081,10 +1244,49 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !menuEl.hidden) closeMenu();
 });
 
+/* ---------- Family setup screen wiring ---------- */
+
+const familyCreateBtn = document.getElementById("family-create");
+const familyJoinBtn = document.getElementById("family-join-btn");
+const familyCodeInput = document.getElementById("family-code");
+const familyError = document.getElementById("family-error");
+
+function showFamilyError(msg) {
+  if (!familyError) return;
+  familyError.textContent = msg;
+  familyError.hidden = false;
+}
+
+if (familyCreateBtn) {
+  familyCreateBtn.addEventListener("click", async () => {
+    familyError.hidden = true;
+    familyCreateBtn.disabled = true;
+    familyCreateBtn.textContent = "Setting up…";
+    try {
+      await createFamily();
+    } catch (e) {
+      showFamilyError("Couldn't set up your family. Please try again.");
+      familyCreateBtn.disabled = false;
+      familyCreateBtn.textContent = "Create a new family";
+    }
+  });
+}
+if (familyJoinBtn) {
+  familyJoinBtn.addEventListener("click", async () => {
+    familyError.hidden = true;
+    try {
+      await joinFamily(familyCodeInput.value);
+    } catch (e) {
+      showFamilyError("That family code didn't work. Check it and try again.");
+    }
+  });
+}
+
 /* ---------- Start ---------------------------------------- */
 
 applyStoredTheme();
-loadState();
-renderChildSwitcher();
+loadUiPrefs();
 showView();
-update();
+setGate("login"); // auth.js will move us to the family setup or the app
+// The signed-in state (and everything after) is driven by onAuthChange,
+// which auth.js calls from Firebase's auth listener.

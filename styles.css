@@ -66,6 +66,178 @@
   box-sizing: border-box;
 }
 
+/* ---------- Login / family-setup screens ----------
+   Which of login / family / app shows is driven by JavaScript
+   (setGate) via inline display, so no gating rules are needed here. */
+.auth {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: var(--paper);
+}
+.auth__card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 32px 24px;
+  text-align: center;
+}
+.auth__logo {
+  display: block;
+  margin: 0 auto 20px;
+  height: 30px;
+  width: auto;
+}
+.auth__logo--dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .auth__logo--light {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .auth__logo--dark {
+    display: block;
+  }
+}
+:root[data-theme="dark"] .auth__logo--light {
+  display: none;
+}
+:root[data-theme="dark"] .auth__logo--dark {
+  display: block;
+}
+.auth__title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+.auth__sub {
+  color: var(--slate);
+  font-size: 14px;
+  margin: 0 0 22px;
+}
+.auth__form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+.auth__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.auth__field[hidden] {
+  display: none;
+}
+.auth__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--slate);
+}
+.auth__field input {
+  min-height: 46px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-family: inherit;
+  border: 1.5px solid var(--mist);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink);
+}
+.auth__field input:focus {
+  outline: none;
+  border-color: var(--strike);
+}
+.auth__submit {
+  min-height: 48px;
+  margin-top: 4px;
+  width: 100%;
+}
+.auth__error {
+  color: var(--declined);
+  font-size: 13px;
+  margin: 2px 0 0;
+}
+.auth__error[hidden] {
+  display: none;
+}
+.auth__toggle {
+  margin-top: 16px;
+}
+
+/* Family setup */
+.family-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--slate);
+  font-size: 12px;
+  margin: 18px 0;
+}
+.family-or::before,
+.family-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--mist);
+}
+.family-join {
+  display: flex;
+  gap: 8px;
+}
+.family-join__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: 1.5px solid var(--mist);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink);
+}
+.family-join__input:focus {
+  outline: none;
+  border-color: var(--strike);
+}
+.family-join .btn {
+  flex: 0 0 auto;
+  min-height: 46px;
+}
+
+/* Account footer inside the drawer */
+.drawer__account {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid var(--mist);
+}
+.drawer__family {
+  font-size: 12px;
+  color: var(--slate);
+  margin: 0 0 6px;
+}
+.drawer__family[hidden] {
+  display: none;
+}
+.drawer__family strong {
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+.drawer__email {
+  font-size: 12px;
+  color: var(--slate);
+  margin: 0 0 6px;
+  word-break: break-all;
+}
+
 body {
   margin: 0;
   min-height: 100vh;
