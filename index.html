@@ -46,8 +46,8 @@
             <input id="auth-name" type="text" autocomplete="name" />
           </label>
           <label class="auth__field">
-            <span class="auth__label">Email</span>
-            <input id="auth-email" type="email" autocomplete="email" required />
+            <span id="auth-email-label" class="auth__label">Email or username</span>
+            <input id="auth-email" type="text" autocomplete="username" required />
           </label>
           <label class="auth__field">
             <span class="auth__label">Password</span>
@@ -141,7 +141,7 @@
             </button>
           </div>
 
-          <div class="drawer__group">
+          <div id="drawer-parents-group" class="drawer__group">
             <p class="drawer__group-name">
               <span class="drawer__emoji" aria-hidden="true">🧑</span>Parents
               <span id="drawer-parent-badge" class="tab__badge" hidden>0</span>

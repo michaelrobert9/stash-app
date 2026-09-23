@@ -309,6 +309,9 @@ let shownPoints = 0; // how much stash cash the tally is currently showing
 let householdId = null; // the current family's id (also the family code)
 let unsubscribers = []; // live-listener teardown functions
 
+let userRole = "parent"; // "parent" | "child"
+let childScopeId = null; // when a child is signed in, the child doc they own
+
 const UI_KEY = "stash-ui"; // small per-device UI preferences
 
 /* ---------- Per-device UI preferences (not family data) ---------- */
@@ -342,6 +345,31 @@ function hcol(name) {
 }
 const serverTime = () => firebase.firestore.FieldValue.serverTimestamp();
 
+/* ---------- Child logins ----------
+   Children don't have email addresses, so they sign in with a simple
+   username. Behind the scenes each username maps to a synthetic email
+   ("zac" -> "zac@stash.kids") that Firebase Authentication can use. */
+
+const CHILD_EMAIL_DOMAIN = "stash.kids";
+
+// A tidy username: lowercase, letters/numbers/dot/underscore/hyphen only.
+function normalizeUsername(raw) {
+  return (raw || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "");
+}
+
+// The synthetic email a username signs in with.
+function childEmailFromUsername(raw) {
+  return `${normalizeUsername(raw)}@${CHILD_EMAIL_DOMAIN}`;
+}
+
+// Is this signed-in account a child (created with a synthetic email)?
+function isChildEmail(email) {
+  return typeof email === "string" && email.endsWith("@" + CHILD_EMAIL_DOMAIN);
+}
+
 /* ---------- Login / family gate ---------------------------
    Three screens: login → family setup → the app. */
 
@@ -353,6 +381,8 @@ function setGate(state) {
   authScreenEl.style.display = state === "login" ? "flex" : "none";
   familyScreenEl.style.display = state === "family" ? "flex" : "none";
   appScreenEl.style.display = state === "app" ? "flex" : "none";
+  // Never leave the drawer open across a screen change (e.g. sign out).
+  if (state !== "app" && typeof closeMenu === "function") closeMenu();
 }
 
 // Called by auth.js whenever the signed-in user changes.
@@ -360,11 +390,46 @@ async function onAuthChange(user) {
   if (!user) {
     detachListeners();
     householdId = null;
+    userRole = "parent";
+    childScopeId = null;
+    applyRoleUI();
     setGate("login");
     return;
   }
   const emailEl = document.getElementById("drawer-email");
+
+  // A child signs in with a username -> we look up which family and
+  // which child they are, and lock the app to their own view.
+  if (isChildEmail(user.email)) {
+    let map = null;
+    try {
+      const doc = await fbDb.collection("childAuth").doc(user.uid).get();
+      map = doc.exists ? doc.data() : null;
+    } catch (e) {
+      /* ignore — treated as an unlinked login below */
+    }
+    if (map && map.householdId && map.childId) {
+      userRole = "child";
+      householdId = map.householdId;
+      childScopeId = map.childId;
+      activeChildId = map.childId;
+      if (emailEl) emailEl.textContent = "@" + user.email.split("@")[0];
+      applyRoleUI();
+      setGate("app");
+      initApp();
+    } else {
+      // Their login exists but a parent has unlinked or not set it up.
+      showToast("This login isn't set up yet. Ask a parent.");
+      await fbAuth.signOut();
+    }
+    return;
+  }
+
+  // Otherwise this is a parent.
+  userRole = "parent";
+  childScopeId = null;
   if (emailEl) emailEl.textContent = user.email || "";
+  applyRoleUI();
 
   // Find the family this parent belongs to.
   let hid = null;
@@ -504,7 +569,15 @@ function detachListeners() {
 
 function initApp() {
   detachListeners();
+  if (userRole === "child") {
+    initChildApp();
+  } else {
+    initParentApp();
+  }
+}
 
+// A parent sees the whole family and keeps it in sync.
+function initParentApp() {
   // Show the family code in the menu so it can be shared with a partner.
   const famEl = document.getElementById("drawer-family");
   if (famEl && householdId) {
@@ -551,6 +624,46 @@ function initApp() {
       redemptions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       update();
     })
+  );
+}
+
+// A child only ever sees their own data — the listeners are scoped
+// to their child record, their chores and their redemptions. (The
+// security rules enforce this too, so a child can't read anyone else.)
+function initChildApp() {
+  const famEl = document.getElementById("drawer-family");
+  if (famEl) famEl.hidden = true;
+
+  unsubscribers.push(
+    hcol("children")
+      .doc(childScopeId)
+      .onSnapshot((doc) => {
+        children = doc.exists ? [{ id: doc.id, ...doc.data() }] : [];
+        activeChildId = childScopeId;
+        update();
+      })
+  );
+  unsubscribers.push(
+    hcol("chores")
+      .where("childId", "==", childScopeId)
+      .onSnapshot((snap) => {
+        tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        update();
+      })
+  );
+  unsubscribers.push(
+    hcol("rewards").onSnapshot((snap) => {
+      rewards = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      update();
+    })
+  );
+  unsubscribers.push(
+    hcol("redemptions")
+      .where("childId", "==", childScopeId)
+      .onSnapshot((snap) => {
+        redemptions = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        update();
+      })
   );
 }
 
@@ -1180,9 +1293,171 @@ function removeChore(choreId) {
   hcol("chores").doc(choreId).delete().catch(warnWrite);
 }
 
+/* ---------- Manage: child logins ------------------------- */
+
+// Child accounts are created on a SECONDARY Firebase app so making one
+// doesn't sign the parent out of their own account.
+let childMakerApp = null;
+function childMaker() {
+  if (!childMakerApp) {
+    childMakerApp = firebase.initializeApp(firebaseConfig, "child-maker");
+  }
+  return childMakerApp;
+}
+
+async function createChildLogin(childId, rawUsername, password) {
+  const username = normalizeUsername(rawUsername);
+  if (!username) {
+    showToast("Pick a username for your child.");
+    return;
+  }
+  if (!password || password.length < 6) {
+    showToast("Password needs at least 6 characters.");
+    return;
+  }
+  const email = childEmailFromUsername(username);
+  const app = childMaker();
+  try {
+    const cred = await app.auth().createUserWithEmailAndPassword(email, password);
+    const uid = cred.user.uid;
+    // The child reads this to find their own family + record when they log in.
+    await fbDb.collection("childAuth").doc(uid).set({ householdId, childId });
+    // Remember the login on the child so we can show and manage it.
+    await hcol("children").doc(childId).update({ username, uid });
+    await app.auth().signOut();
+    showToast(`Login created for @${username}.`);
+  } catch (e) {
+    if (e && e.code === "auth/email-already-in-use") {
+      showToast("That username is taken — try another.");
+    } else {
+      warnWrite(e);
+    }
+  }
+}
+
+async function changeChildPassword(childId, currentPw, newPw) {
+  const child = getChild(childId);
+  if (!child || !child.username) return;
+  if (!newPw || newPw.length < 6) {
+    showToast("New password needs at least 6 characters.");
+    return;
+  }
+  const email = childEmailFromUsername(child.username);
+  const app = childMaker();
+  try {
+    const cred = await app.auth().signInWithEmailAndPassword(email, currentPw);
+    await cred.user.updatePassword(newPw);
+    await app.auth().signOut();
+    showToast("Password updated.");
+  } catch (e) {
+    if (e && (e.code === "auth/wrong-password" || e.code === "auth/invalid-credential")) {
+      showToast("Current password is incorrect.");
+    } else {
+      warnWrite(e);
+    }
+  }
+}
+
+async function removeChildLogin(childId) {
+  const child = getChild(childId);
+  if (!child || !child.username) return;
+  const ok = window.confirm(
+    `Remove @${child.username}'s login? They won't be able to sign in anymore.`
+  );
+  if (!ok) return;
+  try {
+    if (child.uid) await fbDb.collection("childAuth").doc(child.uid).delete();
+    await hcol("children").doc(childId).update({ username: DELETE(), uid: DELETE() });
+    showToast("Login removed.");
+  } catch (e) {
+    warnWrite(e);
+  }
+}
+
+// The login status + controls shown under each child in Manage.
+function childLoginRow(child) {
+  const wrap = document.createElement("div");
+  wrap.className = "manage-login";
+
+  if (child.username) {
+    const label = document.createElement("span");
+    label.className = "manage-login__user";
+    label.textContent = "@" + child.username;
+
+    const form = document.createElement("form");
+    form.className = "manage-login__form";
+    form.hidden = true;
+    const curEl = passwordInput("Current password");
+    const newEl = passwordInput("New password");
+    const save = button("Save", "btn btn--secondary", null);
+    save.type = "submit";
+    form.append(curEl, newEl, save);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      changeChildPassword(child.id, curEl.value, newEl.value);
+      form.reset();
+      form.hidden = true;
+    });
+
+    const change = button("Change password", "text-button manage-login__link", () => {
+      form.hidden = !form.hidden;
+      if (!form.hidden) curEl.focus();
+    });
+    const remove = button(
+      "Remove login",
+      "text-button manage-login__link manage-login__danger",
+      () => removeChildLogin(child.id)
+    );
+
+    const actions = document.createElement("div");
+    actions.className = "manage-login__actions";
+    actions.append(label, change, remove);
+    wrap.append(actions, form);
+  } else {
+    const form = document.createElement("form");
+    form.className = "manage-login__form";
+    form.hidden = true;
+    const userEl = document.createElement("input");
+    userEl.type = "text";
+    userEl.placeholder = "Username";
+    userEl.setAttribute("aria-label", "Username");
+    userEl.autocomplete = "off";
+    userEl.value = normalizeUsername(child.name);
+    const pwEl = passwordInput("Password");
+    const go = button("Create", "btn btn--secondary", null);
+    go.type = "submit";
+    form.append(userEl, pwEl, go);
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      createChildLogin(child.id, userEl.value, pwEl.value);
+    });
+
+    const create = button("Create login", "text-button manage-login__link", () => {
+      form.hidden = !form.hidden;
+      if (!form.hidden) pwEl.focus();
+    });
+    const actions = document.createElement("div");
+    actions.className = "manage-login__actions";
+    actions.append(create);
+    wrap.append(actions, form);
+  }
+  return wrap;
+}
+
+function passwordInput(placeholder) {
+  const el = document.createElement("input");
+  el.type = "password";
+  el.placeholder = placeholder;
+  el.setAttribute("aria-label", placeholder);
+  el.autocomplete = "off";
+  el.minLength = 6;
+  return el;
+}
+
 /* ---------- Parent · Manage (render) ---------- */
 
 function renderParentManage() {
+  if (userRole === "child") return; // parents only
   // Family
   if (familyNameInput && document.activeElement !== familyNameInput) {
     familyNameInput.value = familyName;
@@ -1194,16 +1469,21 @@ function renderParentManage() {
     manageChildrenEl.innerHTML = "";
     children.forEach((child) => {
       const li = document.createElement("li");
-      li.className = "manage-item";
+      li.className = "manage-item manage-child";
       li.style.setProperty("--accent", child.color);
       const age = child.age ? ` · ${child.age}` : "";
-      li.innerHTML = `<span class="manage-item__dot" style="background:${child.color}"></span>
+
+      const top = document.createElement("div");
+      top.className = "manage-child__top";
+      top.innerHTML = `<span class="manage-item__dot" style="background:${child.color}"></span>
         <span class="manage-item__name">${child.name}<span class="manage-item__meta">${age}</span></span>`;
-      li.append(
+      top.append(
         iconButton("×", "pbtn pbtn--decline manage-item__del", "Remove child", () =>
           removeChild(child.id)
         )
       );
+
+      li.append(top, childLoginRow(child));
       manageChildrenEl.append(li);
     });
   }
@@ -1286,9 +1566,25 @@ let currentSection = "chores"; // chores | shop
 
 // Each menu leaf is a full destination: a person + a view.
 function navigate(page, section) {
+  // A child is locked to their own pages.
+  if (userRole === "child") page = "child";
   currentPage = page;
   currentSection = section;
   saveUiPrefs();
+  showView();
+}
+
+// Show or hide the parent-only navigation depending on who's signed in.
+function applyRoleUI() {
+  const isChild = userRole === "child";
+  const parentsGroup = document.getElementById("drawer-parents-group");
+  if (parentsGroup) parentsGroup.hidden = isChild;
+  if (isChild) {
+    currentPage = "child";
+    if (currentSection !== "chores" && currentSection !== "shop") {
+      currentSection = "chores";
+    }
+  }
   showView();
 }
 
@@ -1307,11 +1603,14 @@ function closeMenu() {
 // Show the one panel matching the current page + section, and keep
 // the drawer highlights and footer in step.
 function showView() {
+  // A child can only ever be on their own pages.
+  if (userRole === "child") currentPage = "child";
   const key = `${currentPage}-${currentSection}`;
   Object.entries(panels).forEach(([k, el]) => (el.hidden = k !== key));
 
-  // The child switcher only makes sense on the child pages.
-  childSwitcherEl.hidden = currentPage !== "child";
+  // The child switcher lets a parent flip between children; a signed-in
+  // child has only their own view, so it's hidden for them.
+  childSwitcherEl.hidden = currentPage !== "child" || userRole === "child";
 
   drawerItems.forEach((item) => {
     const active =

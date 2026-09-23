@@ -13,6 +13,7 @@ const authSub = document.getElementById("auth-sub");
 const authNameField = document.getElementById("auth-name-field");
 const authName = document.getElementById("auth-name");
 const authEmail = document.getElementById("auth-email");
+const authEmailLabel = document.getElementById("auth-email-label");
 const authPassword = document.getElementById("auth-password");
 const authError = document.getElementById("auth-error");
 const authSubmit = document.getElementById("auth-submit");
@@ -29,6 +30,10 @@ function setAuthMode(mode) {
   const signup = mode === "signup";
   authNameField.hidden = !signup;
   authName.required = signup;
+  // Only parents sign up (with an email). Signing in also accepts a
+  // child's username.
+  if (authEmailLabel) authEmailLabel.textContent = signup ? "Email" : "Email or username";
+  authEmail.setAttribute("autocomplete", signup ? "email" : "username");
   authTitle.textContent = signup ? "Create your account" : "Welcome back";
   authSub.textContent = signup
     ? "Set up a parent account for your family."
@@ -111,7 +116,10 @@ authForm.addEventListener("submit", async (e) => {
         console.warn("Could not save parent profile yet:", writeErr);
       }
     } else {
-      await fbAuth.signInWithEmailAndPassword(email, password);
+      // Parents type an email; children type just their username, which
+      // maps to a synthetic email behind the scenes.
+      const loginId = email.includes("@") ? email : childEmailFromUsername(email);
+      await fbAuth.signInWithEmailAndPassword(loginId, password);
     }
     // onAuthStateChanged will reveal the app.
   } catch (err) {
@@ -134,6 +142,7 @@ if (signOutBtn) {
 
 fbAuth.onAuthStateChanged((user) => {
   authPassword.value = ""; // start fresh next time
+  if (!user) setAuthMode("signin"); // signing out returns to the sign-in view
   onAuthChange(user);
 });
 
