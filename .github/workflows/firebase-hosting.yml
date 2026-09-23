@@ -1,0 +1,22 @@
+name: Firebase Hosting
+
+# Publishes the site to Firebase Hosting.
+#   - push to main            -> the live site
+#   - push to the work branch -> a temporary preview URL (for testing)
+on:
+  push:
+    branches:
+      - main
+      - claude/firebase-accounts
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: stash-app-afe5b
+          channelId: ${{ github.ref_name == 'main' && 'live' || 'preview' }}
