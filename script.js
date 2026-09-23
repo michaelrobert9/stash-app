@@ -286,6 +286,18 @@ const choreNameEl = document.getElementById("chore-name");
 const choreChildEl = document.getElementById("chore-child");
 const choreAwardsEl = document.getElementById("chore-awards");
 
+/* Kid mode + passcode */
+const handoverBtn = document.getElementById("handover-btn");
+const exitKidBtn = document.getElementById("exit-kid");
+const handoverOverlay = document.getElementById("handover-overlay");
+const handoverListEl = document.getElementById("handover-list");
+const pinOverlay = document.getElementById("pin-overlay");
+const pinInput = document.getElementById("pin-input");
+const pinError = document.getElementById("pin-error");
+const passcodeForm = document.getElementById("passcode-form");
+const passcodeInput = document.getElementById("passcode-input");
+const passcodeStatus = document.getElementById("passcode-status");
+
 let familyName = "Our family"; // kept in sync from the household doc
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -312,6 +324,12 @@ let unsubscribers = []; // live-listener teardown functions
 let userRole = "parent"; // "parent" | "child"
 let childScopeId = null; // when a child is signed in, the child doc they own
 
+// "Kid mode": a signed-in parent hands the phone to a child. The app
+// locks to that child's view until the family passcode is entered.
+let locked = false;
+let lockedChildId = null;
+let familyPin = null; // the family's 4-digit parent passcode (from the household doc)
+
 const UI_KEY = "stash-ui"; // small per-device UI preferences
 
 /* ---------- Per-device UI preferences (not family data) ---------- */
@@ -322,6 +340,12 @@ function loadUiPrefs() {
     if (p.page === "child" || p.page === "parent") currentPage = p.page;
     if (p.section === "chores" || p.section === "shop") currentSection = p.section;
     if (p.activeChildId) activeChildId = p.activeChildId;
+    // Kid mode survives a refresh, so a child can't escape it by reloading.
+    if (p.locked) {
+      locked = true;
+      lockedChildId = p.lockedChildId || null;
+      if (lockedChildId) activeChildId = lockedChildId;
+    }
   } catch (e) {
     /* ignore */
   }
@@ -330,7 +354,13 @@ function saveUiPrefs() {
   try {
     localStorage.setItem(
       UI_KEY,
-      JSON.stringify({ page: currentPage, section: currentSection, activeChildId })
+      JSON.stringify({
+        page: currentPage,
+        section: currentSection,
+        activeChildId,
+        locked,
+        lockedChildId,
+      })
     );
   } catch (e) {
     /* ignore */
@@ -392,6 +422,9 @@ async function onAuthChange(user) {
     householdId = null;
     userRole = "parent";
     childScopeId = null;
+    locked = false;
+    lockedChildId = null;
+    saveUiPrefs();
     applyRoleUI();
     setGate("login");
     return;
@@ -591,7 +624,9 @@ function initParentApp() {
       .collection("households")
       .doc(householdId)
       .onSnapshot((doc) => {
-        familyName = (doc.data() && doc.data().name) || "Our family";
+        const data = doc.data() || {};
+        familyName = data.name || "Our family";
+        familyPin = data.pin || null;
         renderParentManage();
       })
   );
@@ -1184,6 +1219,7 @@ function verifyTask(id, points) {
 }
 
 function setActiveChild(id) {
+  if (locked) return; // in kid mode you can't switch to another child
   activeChildId = id;
   shownPoints = childPoints(id); // no draw-on animation just for switching
   saveUiPrefs();
@@ -1463,6 +1499,9 @@ function renderParentManage() {
     familyNameInput.value = familyName;
   }
   if (manageCodeEl) manageCodeEl.textContent = householdId || "";
+  if (passcodeStatus) {
+    passcodeStatus.textContent = familyPin ? "A passcode is set. " : "No passcode set yet. ";
+  }
 
   // Children list
   if (manageChildrenEl) {
@@ -1566,26 +1605,126 @@ let currentSection = "chores"; // chores | shop
 
 // Each menu leaf is a full destination: a person + a view.
 function navigate(page, section) {
-  // A child is locked to their own pages.
-  if (userRole === "child") page = "child";
+  // Any kid view is locked to the child's own pages.
+  if (isKidView()) page = "child";
   currentPage = page;
   currentSection = section;
   saveUiPrefs();
   showView();
 }
 
-// Show or hide the parent-only navigation depending on who's signed in.
+// A parent who has handed the phone to a child (kid mode).
+function isLockedParent() {
+  return userRole === "parent" && locked;
+}
+// The app is showing a child-only view — either a signed-in child, or a
+// parent in kid mode.
+function isKidView() {
+  return userRole === "child" || isLockedParent();
+}
+
+// Show or hide the parent-only bits depending on who's using the app.
 function applyRoleUI() {
-  const isChild = userRole === "child";
+  const kid = isKidView();
   const parentsGroup = document.getElementById("drawer-parents-group");
-  if (parentsGroup) parentsGroup.hidden = isChild;
-  if (isChild) {
+  if (parentsGroup) parentsGroup.hidden = kid;
+  if (handoverBtn) handoverBtn.hidden = kid; // only a full parent can hand over
+  // In kid mode, Sign out would end the parent's session, so we hide it and
+  // offer "switch back to parent" (guarded by the passcode) instead.
+  const signOut = document.getElementById("sign-out");
+  if (signOut) signOut.hidden = isLockedParent();
+  if (exitKidBtn) exitKidBtn.hidden = !isLockedParent();
+  if (kid) {
     currentPage = "child";
     if (currentSection !== "chores" && currentSection !== "shop") {
       currentSection = "chores";
     }
+    if (lockedChildId) activeChildId = lockedChildId;
   }
   showView();
+}
+
+/* ---------- Kid mode: hand the phone to a child ---------- */
+
+function openModal(el) {
+  if (el) el.hidden = false;
+}
+function closeModal(el) {
+  if (el) el.hidden = true;
+}
+
+// Parent taps "Hand phone to a child" — pick which one.
+function openHandover() {
+  if (!familyPin) {
+    showToast("Set a parent passcode first (Parents → Manage).");
+    navigate("parent", "manage");
+    return;
+  }
+  handoverListEl.innerHTML = "";
+  children.forEach((child) => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "handover-child";
+    b.innerHTML = `<span class="handover-child__dot" style="background:${child.color}"></span>${child.name}`;
+    b.addEventListener("click", () => {
+      closeModal(handoverOverlay);
+      enterKidMode(child.id);
+    });
+    handoverListEl.append(b);
+  });
+  openModal(handoverOverlay);
+}
+
+function enterKidMode(childId) {
+  if (!familyPin) {
+    showToast("Set a parent passcode first (Parents → Manage).");
+    return;
+  }
+  locked = true;
+  lockedChildId = childId;
+  activeChildId = childId;
+  currentPage = "child";
+  currentSection = "chores";
+  saveUiPrefs();
+  closeMenu();
+  applyRoleUI();
+  update();
+}
+
+function exitKidMode() {
+  locked = false;
+  lockedChildId = null;
+  saveUiPrefs();
+  applyRoleUI();
+  update();
+}
+
+// The passcode prompt shown when switching back to the parent side.
+function askPin() {
+  pinInput.value = "";
+  pinError.hidden = true;
+  openModal(pinOverlay);
+  setTimeout(() => pinInput.focus(), 50);
+}
+function submitPin() {
+  if (pinInput.value === familyPin) {
+    closeModal(pinOverlay);
+    exitKidMode();
+  } else {
+    pinError.hidden = false;
+    pinInput.value = "";
+    pinInput.focus();
+  }
+}
+
+function setFamilyPin(raw) {
+  const pin = (raw || "").replace(/\D/g, "").slice(0, 4);
+  if (pin.length !== 4) {
+    showToast("Passcode must be 4 digits.");
+    return;
+  }
+  fbDb.collection("households").doc(householdId).update({ pin }).catch(warnWrite);
+  showToast("Passcode saved.");
 }
 
 function toggleMenu() {
@@ -1603,14 +1742,15 @@ function closeMenu() {
 // Show the one panel matching the current page + section, and keep
 // the drawer highlights and footer in step.
 function showView() {
-  // A child can only ever be on their own pages.
-  if (userRole === "child") currentPage = "child";
+  // In any kid view (a signed-in child, or a parent in kid mode) only the
+  // child pages are reachable.
+  if (isKidView()) currentPage = "child";
   const key = `${currentPage}-${currentSection}`;
   Object.entries(panels).forEach(([k, el]) => (el.hidden = k !== key));
 
-  // The child switcher lets a parent flip between children; a signed-in
-  // child has only their own view, so it's hidden for them.
-  childSwitcherEl.hidden = currentPage !== "child" || userRole === "child";
+  // The child switcher lets a parent flip between children; in kid mode
+  // there's only the one child's view, so it's hidden.
+  childSwitcherEl.hidden = currentPage !== "child" || isKidView();
 
   drawerItems.forEach((item) => {
     const active =
@@ -1741,6 +1881,42 @@ if (choreForm) {
     choreNameEl.value = "";
     choreAwardsEl.value = "";
     choreNameEl.focus();
+  });
+}
+
+/* ---------- Kid mode wiring ---------- */
+
+if (handoverBtn) {
+  handoverBtn.addEventListener("click", () => {
+    closeMenu();
+    openHandover();
+  });
+}
+if (exitKidBtn) {
+  exitKidBtn.addEventListener("click", () => {
+    closeMenu();
+    askPin();
+  });
+}
+if (handoverOverlay) {
+  handoverOverlay
+    .querySelectorAll('[data-close="handover"]')
+    .forEach((el) => el.addEventListener("click", () => closeModal(handoverOverlay)));
+}
+if (pinOverlay) {
+  const pinOk = document.getElementById("pin-ok");
+  const pinCancel = document.getElementById("pin-cancel");
+  if (pinOk) pinOk.addEventListener("click", submitPin);
+  if (pinCancel) pinCancel.addEventListener("click", () => closeModal(pinOverlay));
+  pinInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") submitPin();
+  });
+}
+if (passcodeForm) {
+  passcodeForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    setFamilyPin(passcodeInput.value);
+    passcodeInput.value = "";
   });
 }
 
