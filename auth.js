@@ -129,19 +129,12 @@ if (signOutBtn) {
   signOutBtn.addEventListener("click", () => fbAuth.signOut());
 }
 
-/* ---------- React to who's signed in ---------- */
+/* ---------- React to who's signed in ----------
+   onAuthChange (in script.js) drives the login → family → app gate. */
 
 fbAuth.onAuthStateChanged((user) => {
-  if (user) {
-    document.body.classList.add("authed");
-    authScreen.hidden = true;
-    if (drawerEmail) drawerEmail.textContent = user.email || "";
-    // Clear the form so a signed-out user starts fresh next time.
-    authPassword.value = "";
-  } else {
-    document.body.classList.remove("authed");
-    authScreen.hidden = false;
-  }
+  authPassword.value = ""; // start fresh next time
+  onAuthChange(user);
 });
 
 // Start on the sign-in view.

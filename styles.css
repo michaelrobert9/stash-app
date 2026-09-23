@@ -66,18 +66,9 @@
   box-sizing: border-box;
 }
 
-/* ---------- Login screen ---------- */
-#auth-screen[hidden] {
-  display: none;
-}
-/* Gate: the app is hidden until a parent is signed in */
-body:not(.authed) .screen {
-  display: none;
-}
-body.authed #auth-screen {
-  display: none;
-}
-
+/* ---------- Login / family-setup screens ----------
+   Which of login / family / app shows is driven by JavaScript
+   (setGate) via inline display, so no gating rules are needed here. */
 .auth {
   min-height: 100vh;
   display: flex;
@@ -178,11 +169,67 @@ body.authed #auth-screen {
   margin-top: 16px;
 }
 
+/* Family setup */
+.family-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--slate);
+  font-size: 12px;
+  margin: 18px 0;
+}
+.family-or::before,
+.family-or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--mist);
+}
+.family-join {
+  display: flex;
+  gap: 8px;
+}
+.family-join__input {
+  flex: 1;
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 14px;
+  font-size: 15px;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border: 1.5px solid var(--mist);
+  border-radius: var(--r-md);
+  background: var(--paper);
+  color: var(--ink);
+}
+.family-join__input:focus {
+  outline: none;
+  border-color: var(--strike);
+}
+.family-join .btn {
+  flex: 0 0 auto;
+  min-height: 46px;
+}
+
 /* Account footer inside the drawer */
 .drawer__account {
   margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid var(--mist);
+}
+.drawer__family {
+  font-size: 12px;
+  color: var(--slate);
+  margin: 0 0 6px;
+}
+.drawer__family[hidden] {
+  display: none;
+}
+.drawer__family strong {
+  color: var(--ink);
+  font-weight: 700;
+  letter-spacing: 1px;
 }
 .drawer__email {
   font-size: 12px;

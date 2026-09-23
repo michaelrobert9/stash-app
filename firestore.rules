@@ -1,18 +1,49 @@
 rules_version = '2';
 
 // Stash — Firestore security rules.
-// Phase 1: parent accounts only. A signed-in user can read and write
-// their own profile document, and nothing else. (More rules are added
-// as the family data and child logins move into the cloud.)
+//
+// Model: parents belong to a "household". All of a family's data
+// (children, chores, rewards, redemptions) lives under that household,
+// and only its members (parents) can read or write it.
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Each parent's own profile: only they can read or write it.
+    // Each parent's own profile (holds their householdId).
     match /users/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // Everything else is locked until later phases add explicit rules.
+    match /households/{hid} {
+      function isMember() {
+        return request.auth != null
+          && exists(/databases/$(database)/documents/households/$(hid)/members/$(request.auth.uid));
+      }
+
+      // The household document itself.
+      allow read: if isMember();
+      allow create: if request.auth != null; // start a new family
+      allow update: if isMember();
+      allow delete: if false;
+
+      // Parents in the household. You join by creating your own member
+      // doc (you must know the family code, which is the household id,
+      // and the household must already exist).
+      match /members/{memberId} {
+        allow read: if isMember();
+        allow create: if request.auth != null
+          && request.auth.uid == memberId
+          && exists(/databases/$(database)/documents/households/$(hid));
+        allow update, delete: if request.auth != null && request.auth.uid == memberId;
+      }
+
+      // The family's data — members only.
+      match /children/{id}    { allow read, write: if isMember(); }
+      match /chores/{id}      { allow read, write: if isMember(); }
+      match /rewards/{id}     { allow read, write: if isMember(); }
+      match /redemptions/{id} { allow read, write: if isMember(); }
+    }
+
+    // Anything else is denied.
     match /{document=**} {
       allow read, write: if false;
     }

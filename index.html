@@ -65,7 +65,30 @@
       </div>
     </div>
 
-    <div class="screen">
+    <!-- ================= FAMILY SETUP ================= -->
+    <div id="family-screen" class="auth" style="display: none">
+      <div class="auth__card">
+        <img class="auth__logo auth__logo--light" src="logo/svg/stash-lockup-horizontal.svg" alt="Stash" />
+        <img class="auth__logo auth__logo--dark" src="logo/svg/stash-lockup-horizontal-reversed.svg" alt="Stash" />
+        <h1 class="auth__title">Set up your family</h1>
+        <p class="auth__sub">Start a new family, or join the one your partner already set up.</p>
+
+        <button id="family-create" class="btn btn--primary auth__submit" type="button">
+          Create a new family
+        </button>
+
+        <p class="family-or"><span>or</span></p>
+
+        <div class="family-join">
+          <input id="family-code" class="family-join__input" type="text" placeholder="Family code" autocomplete="off" />
+          <button id="family-join-btn" class="btn btn--secondary" type="button">Join</button>
+        </div>
+
+        <p id="family-error" class="auth__error" hidden></p>
+      </div>
+    </div>
+
+    <div class="screen" style="display: none">
       <!-- ---------- Top bar: hamburger + logo + theme toggle ---------- -->
       <header class="topbar">
         <button id="menu-toggle" class="icon-button" type="button" aria-label="Menu" aria-expanded="false">
@@ -132,6 +155,7 @@
           </div>
 
           <div class="drawer__account">
+            <p id="drawer-family" class="drawer__family" hidden></p>
             <p id="drawer-email" class="drawer__email"></p>
             <button id="sign-out" class="text-button" type="button">Sign out</button>
           </div>
@@ -205,7 +229,6 @@
       <!-- ---------- Footer ---------- -->
       <footer class="footer">
         <p id="footer-note" class="footer__note"></p>
-        <button id="reset" class="text-button" type="button">Reset demo</button>
       </footer>
     </div>
 
