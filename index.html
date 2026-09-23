@@ -46,8 +46,8 @@
             <input id="auth-name" type="text" autocomplete="name" />
           </label>
           <label class="auth__field">
-            <span class="auth__label">Email</span>
-            <input id="auth-email" type="email" autocomplete="email" required />
+            <span id="auth-email-label" class="auth__label">Email or username</span>
+            <input id="auth-email" type="text" autocomplete="username" required />
           </label>
           <label class="auth__field">
             <span class="auth__label">Password</span>
@@ -139,9 +139,12 @@
             <button class="drawer__item drawer__item--sub" type="button" data-page="child" data-section="shop">
               Shop
             </button>
+            <button id="handover-btn" class="drawer__item drawer__item--sub" type="button">
+              🔒 Hand phone to a child
+            </button>
           </div>
 
-          <div class="drawer__group">
+          <div id="drawer-parents-group" class="drawer__group">
             <p class="drawer__group-name">
               <span class="drawer__emoji" aria-hidden="true">🧑</span>Parents
               <span id="drawer-parent-badge" class="tab__badge" hidden>0</span>
@@ -160,6 +163,9 @@
           <div class="drawer__account">
             <p id="drawer-family" class="drawer__family" hidden></p>
             <p id="drawer-email" class="drawer__email"></p>
+            <button id="exit-kid" class="btn btn--secondary" type="button" hidden>
+              I'm a parent — switch back
+            </button>
             <button id="sign-out" class="text-button" type="button">Sign out</button>
           </div>
         </nav>
@@ -244,6 +250,18 @@
           </div>
 
           <div class="manage-block">
+            <h3 class="manage-block__title">Parent passcode</h3>
+            <form id="passcode-form" class="manage-inline">
+              <input id="passcode-input" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" aria-label="4-digit passcode" placeholder="4-digit code" />
+              <button class="btn btn--secondary" type="submit">Save</button>
+            </form>
+            <p class="manage-hint">
+              <span id="passcode-status"></span>
+              Used to switch back to the parent side after you hand the phone to a child.
+            </p>
+          </div>
+
+          <div class="manage-block">
             <h3 class="manage-block__title">Children</h3>
             <ul id="manage-children" class="manage-list"></ul>
             <form id="child-form" class="manage-form">
@@ -273,6 +291,30 @@
       <footer class="footer">
         <p id="footer-note" class="footer__note"></p>
       </footer>
+    </div>
+
+    <!-- Choose which child to hand the phone to -->
+    <div id="handover-overlay" class="modal" hidden>
+      <div class="modal__backdrop" data-close="handover"></div>
+      <div class="modal__card" role="dialog" aria-label="Hand the phone to a child">
+        <p class="modal__title">Hand the phone to…</p>
+        <div id="handover-list" class="handover-list"></div>
+        <button class="text-button modal__cancel" type="button" data-close="handover">Cancel</button>
+      </div>
+    </div>
+
+    <!-- Enter the parent passcode to switch back from kid mode -->
+    <div id="pin-overlay" class="modal" hidden>
+      <div class="modal__backdrop"></div>
+      <div class="modal__card" role="dialog" aria-label="Enter parent passcode">
+        <p class="modal__title">Enter parent passcode</p>
+        <input id="pin-input" class="pin-input" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" aria-label="Parent passcode" />
+        <p id="pin-error" class="pin-error" hidden>That passcode isn't right.</p>
+        <div class="modal__actions">
+          <button id="pin-cancel" class="text-button" type="button">Cancel</button>
+          <button id="pin-ok" class="btn btn--primary" type="button">Unlock</button>
+        </div>
+      </div>
     </div>
 
     <!-- Small message that appears when stash cash is earned -->
