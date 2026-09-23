@@ -152,6 +152,9 @@
             <button class="drawer__item drawer__item--sub" type="button" data-page="parent" data-section="shop">
               Shop
             </button>
+            <button class="drawer__item drawer__item--sub" type="button" data-page="parent" data-section="manage">
+              Manage
+            </button>
           </div>
 
           <div class="drawer__account">
@@ -223,6 +226,46 @@
           </form>
           <ul id="reward-list" class="reward-list"></ul>
           <div id="redemptions" class="redemptions"></div>
+        </section>
+
+        <!-- Parent · Manage -->
+        <section id="panel-parent-manage" class="panel" hidden>
+          <h2 class="section-heading">Manage</h2>
+
+          <div class="manage-block">
+            <h3 class="manage-block__title">Family</h3>
+            <form id="family-name-form" class="manage-inline">
+              <input id="family-name-input" type="text" aria-label="Family name" placeholder="Family name" />
+              <button class="btn btn--secondary" type="submit">Save</button>
+            </form>
+            <p class="manage-hint">
+              Family code: <strong id="manage-code"></strong> — share it with another parent so they can join.
+            </p>
+          </div>
+
+          <div class="manage-block">
+            <h3 class="manage-block__title">Children</h3>
+            <ul id="manage-children" class="manage-list"></ul>
+            <form id="child-form" class="manage-form">
+              <input id="child-name" type="text" placeholder="Child's name" aria-label="Child's name" required />
+              <input id="child-age" type="number" min="1" max="21" placeholder="Age" aria-label="Age" class="manage-form__age" />
+              <button class="btn btn--primary" type="submit">Add</button>
+            </form>
+          </div>
+
+          <div class="manage-block">
+            <h3 class="manage-block__title">Chores</h3>
+            <ul id="manage-chores" class="manage-list"></ul>
+            <form id="chore-form" class="manage-form">
+              <input id="chore-name" type="text" placeholder="Chore name" aria-label="Chore name" required />
+              <select id="chore-child" class="manage-form__child" aria-label="Which child"></select>
+              <input id="chore-awards" type="text" placeholder="Points e.g. 5,10,15" aria-label="Points options" class="manage-form__awards" required />
+              <button class="btn btn--primary" type="submit">Add</button>
+            </form>
+            <p class="manage-hint">
+              Points can be a single value (e.g. <strong>3</strong>) or a few options for a job done well or badly (e.g. <strong>5,10,15</strong>).
+            </p>
+          </div>
         </section>
       </main>
 

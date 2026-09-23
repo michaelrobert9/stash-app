@@ -241,6 +241,7 @@ const panels = {
   "child-shop": document.getElementById("panel-child-shop"),
   "parent-chores": document.getElementById("panel-parent-chores"),
   "parent-shop": document.getElementById("panel-parent-shop"),
+  "parent-manage": document.getElementById("panel-parent-manage"),
 };
 
 /* Child · Chores */
@@ -270,6 +271,22 @@ const rewardCostEl = document.getElementById("reward-cost");
 const rewardForEl = document.getElementById("reward-for");
 const rewardListEl = document.getElementById("reward-list");
 const redemptionsEl = document.getElementById("redemptions");
+
+/* Parent · Manage */
+const familyNameForm = document.getElementById("family-name-form");
+const familyNameInput = document.getElementById("family-name-input");
+const manageCodeEl = document.getElementById("manage-code");
+const manageChildrenEl = document.getElementById("manage-children");
+const childForm = document.getElementById("child-form");
+const childNameEl = document.getElementById("child-name");
+const childAgeEl = document.getElementById("child-age");
+const manageChoresEl = document.getElementById("manage-chores");
+const choreForm = document.getElementById("chore-form");
+const choreNameEl = document.getElementById("chore-name");
+const choreChildEl = document.getElementById("chore-child");
+const choreAwardsEl = document.getElementById("chore-awards");
+
+let familyName = "Our family"; // kept in sync from the household doc
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const prefersReducedMotion = window.matchMedia(
@@ -494,6 +511,17 @@ function initApp() {
     famEl.innerHTML = `Family code: <strong>${householdId}</strong>`;
     famEl.hidden = false;
   }
+
+  // The household doc holds the family name.
+  unsubscribers.push(
+    fbDb
+      .collection("households")
+      .doc(householdId)
+      .onSnapshot((doc) => {
+        familyName = (doc.data() && doc.data().name) || "Our family";
+        renderParentManage();
+      })
+  );
 
   unsubscribers.push(
     hcol("children").onSnapshot((snap) => {
@@ -1084,6 +1112,140 @@ function warnWrite(err) {
   showToast("Couldn't save — check your connection.");
 }
 
+/* ---------- Manage: family, children, chores ------------- */
+
+function renameFamily(name) {
+  const trimmed = (name || "").trim();
+  if (!trimmed) return;
+  fbDb.collection("households").doc(householdId).update({ name: trimmed }).catch(warnWrite);
+  showToast("Family name saved.");
+}
+
+// Pick a colour not already used by another child (falls back to the first).
+function nextChildColor() {
+  const used = children.map((c) => c.color);
+  const free = CHILD_COLORS.find((c) => !used.includes(c.value));
+  return (free || CHILD_COLORS[0]).value;
+}
+
+function addChild(name, age) {
+  hcol("children")
+    .add({ name: name.trim(), age: age || null, color: nextChildColor() })
+    .catch(warnWrite);
+  showToast(`${name.trim()} added.`);
+}
+
+async function removeChild(childId) {
+  const child = getChild(childId);
+  const ok = window.confirm(
+    `Remove ${child ? child.name : "this child"}? Their chores will be removed too. This can't be undone.`
+  );
+  if (!ok) return;
+  try {
+    const snap = await hcol("chores").where("childId", "==", childId).get();
+    const batch = fbDb.batch();
+    snap.forEach((d) => batch.delete(d.ref));
+    batch.delete(hcol("children").doc(childId));
+    await batch.commit();
+    showToast("Child removed.");
+  } catch (e) {
+    warnWrite(e);
+  }
+}
+
+// Parse "5,10,15" (or "3") into a sorted list of positive whole numbers.
+function parseAwards(text) {
+  const nums = (text || "")
+    .split(/[\s,]+/)
+    .map((s) => parseInt(s, 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return Array.from(new Set(nums)).sort((a, b) => a - b);
+}
+
+function addChore(name, childId, awards) {
+  if (!name.trim() || !childId || !awards.length) return;
+  hcol("chores")
+    .add({
+      childId,
+      name: name.trim(),
+      awards,
+      points: Math.max(...awards),
+      state: "todo",
+    })
+    .catch(warnWrite);
+  showToast("Chore added.");
+}
+
+function removeChore(choreId) {
+  hcol("chores").doc(choreId).delete().catch(warnWrite);
+}
+
+/* ---------- Parent · Manage (render) ---------- */
+
+function renderParentManage() {
+  // Family
+  if (familyNameInput && document.activeElement !== familyNameInput) {
+    familyNameInput.value = familyName;
+  }
+  if (manageCodeEl) manageCodeEl.textContent = householdId || "";
+
+  // Children list
+  if (manageChildrenEl) {
+    manageChildrenEl.innerHTML = "";
+    children.forEach((child) => {
+      const li = document.createElement("li");
+      li.className = "manage-item";
+      li.style.setProperty("--accent", child.color);
+      const age = child.age ? ` · ${child.age}` : "";
+      li.innerHTML = `<span class="manage-item__dot" style="background:${child.color}"></span>
+        <span class="manage-item__name">${child.name}<span class="manage-item__meta">${age}</span></span>`;
+      li.append(
+        iconButton("×", "pbtn pbtn--decline manage-item__del", "Remove child", () =>
+          removeChild(child.id)
+        )
+      );
+      manageChildrenEl.append(li);
+    });
+  }
+
+  // The "which child" picker on the add-chore form
+  if (choreChildEl) {
+    const current = choreChildEl.value;
+    choreChildEl.innerHTML = "";
+    children.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      choreChildEl.append(opt);
+    });
+    if (children.some((c) => c.id === current)) choreChildEl.value = current;
+  }
+
+  // Chores list, grouped by child
+  if (manageChoresEl) {
+    manageChoresEl.innerHTML = "";
+    children.forEach((child) => {
+      const mine = tasksFor(child.id);
+      if (!mine.length) return;
+      mine.forEach((task) => {
+        const li = document.createElement("li");
+        li.className = "manage-item";
+        li.style.setProperty("--accent", child.color);
+        li.innerHTML = `
+          <span class="child-chip" style="background:${child.color}">${child.name}</span>
+          <span class="manage-item__name">${task.name}</span>
+          <span class="badge">${pointsLabel(task)}<span class="badge__unit">SC</span></span>`;
+        li.append(
+          iconButton("×", "pbtn pbtn--decline manage-item__del", "Remove chore", () =>
+            removeChore(task.id)
+          )
+        );
+        manageChoresEl.append(li);
+      });
+    });
+  }
+}
+
 /* ---------- The hint under the balance ------------------- */
 
 function updateHint(childId) {
@@ -1162,7 +1324,10 @@ function showView() {
 
 function updateFooterNote() {
   let note;
-  if (currentSection === "shop") {
+  if (currentSection === "manage") {
+    note =
+      "Add or remove children and chores, and rename your family. Share the family code so another parent can join.";
+  } else if (currentSection === "shop") {
     note =
       currentPage === "child"
         ? "Spend your stash cash on a reward you can afford."
@@ -1183,6 +1348,7 @@ function update() {
   renderChildShop();
   renderParentChores();
   renderParentShop();
+  renderParentManage();
 }
 
 /* ---------- Theme toggle --------------------------------- */
@@ -1238,6 +1404,46 @@ rewardForm.addEventListener("submit", (e) => {
   rewardEmojiEl.value = "🎁";
   rewardNameEl.focus();
 });
+
+/* ---------- Parent · Manage wiring ---------- */
+
+// Rename the family.
+if (familyNameForm) {
+  familyNameForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    renameFamily(familyNameInput.value);
+    familyNameInput.blur();
+  });
+}
+
+// Add a child.
+if (childForm) {
+  childForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = childNameEl.value.trim();
+    if (!name) return;
+    const age = parseInt(childAgeEl.value, 10);
+    addChild(name, Number.isFinite(age) ? age : null);
+    childNameEl.value = "";
+    childAgeEl.value = "";
+    childNameEl.focus();
+  });
+}
+
+// Add a chore for a child.
+if (choreForm) {
+  choreForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const name = choreNameEl.value.trim();
+    const childId = choreChildEl.value;
+    const awards = parseAwards(choreAwardsEl.value);
+    if (!name || !childId || !awards.length) return;
+    addChore(name, childId, awards);
+    choreNameEl.value = "";
+    choreAwardsEl.value = "";
+    choreNameEl.focus();
+  });
+}
 
 // Close the drawer with Escape.
 document.addEventListener("keydown", (e) => {
