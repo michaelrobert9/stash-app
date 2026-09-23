@@ -24,6 +24,47 @@
   </head>
 
   <body>
+    <!-- ================= LOGIN SCREEN ================= -->
+    <div id="auth-screen" class="auth">
+      <div class="auth__card">
+        <img
+          class="auth__logo auth__logo--light"
+          src="logo/svg/stash-lockup-horizontal.svg"
+          alt="Stash"
+        />
+        <img
+          class="auth__logo auth__logo--dark"
+          src="logo/svg/stash-lockup-horizontal-reversed.svg"
+          alt="Stash"
+        />
+        <h1 id="auth-title" class="auth__title">Welcome back</h1>
+        <p id="auth-sub" class="auth__sub">Sign in to your Stash account.</p>
+
+        <form id="auth-form" class="auth__form">
+          <label id="auth-name-field" class="auth__field" hidden>
+            <span class="auth__label">Your name</span>
+            <input id="auth-name" type="text" autocomplete="name" />
+          </label>
+          <label class="auth__field">
+            <span class="auth__label">Email</span>
+            <input id="auth-email" type="email" autocomplete="email" required />
+          </label>
+          <label class="auth__field">
+            <span class="auth__label">Password</span>
+            <input id="auth-password" type="password" autocomplete="current-password" required minlength="6" />
+          </label>
+          <p id="auth-error" class="auth__error" hidden></p>
+          <button id="auth-submit" class="btn btn--primary auth__submit" type="submit">
+            Sign in
+          </button>
+        </form>
+
+        <button id="auth-toggle" class="text-button auth__toggle" type="button">
+          New here? Create an account
+        </button>
+      </div>
+    </div>
+
     <div class="screen">
       <!-- ---------- Top bar: hamburger + logo + theme toggle ---------- -->
       <header class="topbar">
@@ -88,6 +129,11 @@
             <button class="drawer__item drawer__item--sub" type="button" data-page="parent" data-section="shop">
               Shop
             </button>
+          </div>
+
+          <div class="drawer__account">
+            <p id="drawer-email" class="drawer__email"></p>
+            <button id="sign-out" class="text-button" type="button">Sign out</button>
           </div>
         </nav>
       </div>
@@ -166,6 +212,13 @@
     <!-- Small message that appears when stash cash is earned -->
     <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
+    <!-- Firebase (compat SDK) — accounts + database -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+    <script src="firebase-config.js"></script>
+
     <script src="script.js"></script>
+    <script src="auth.js"></script>
   </body>
 </html>
